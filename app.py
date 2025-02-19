@@ -1,8 +1,9 @@
 import os
 import logging
 from flask import Flask, request, render_template, jsonify
-from github_bot import GitHubBot
 from dotenv import load_dotenv
+from db import db
+from github_bot import GitHubBot
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -15,11 +16,25 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
 
+# Configure database
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_recycle": 300,
+    "pool_pre_ping": True,
+}
+db.init_app(app)
+
 # Initialize GitHub bot
 github_bot = GitHubBot(
     token=os.environ.get("GITHUB_TOKEN"),
-    webhook_secret=os.environ.get("WEBHOOK_SECRET")
+    webhook_secret=os.environ.get("WEBHOOK_SECRET"),
+    db=db
 )
+
+with app.app_context():
+    # Import models here to avoid circular imports
+    import models  # noqa: F401
+    db.create_all()
 
 @app.route('/')
 def index():

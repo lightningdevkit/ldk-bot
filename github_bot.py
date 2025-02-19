@@ -2,13 +2,14 @@ import hmac
 import hashlib
 import logging
 import requests
-from pr_manager import PRManager
+from models import PullRequest, Review
+from datetime import datetime
 
 class GitHubBot:
-    def __init__(self, token, webhook_secret):
+    def __init__(self, token, webhook_secret, db):
         self.token = token
         self.webhook_secret = webhook_secret.encode()
-        self.pr_manager = PRManager()
+        self.db = db
         self.logger = logging.getLogger(__name__)
         self.headers = {
             'Authorization': f'token {token}',
@@ -38,12 +39,23 @@ class GitHubBot:
         if action == 'opened':
             self._handle_new_pr(pr)
         elif action == 'closed':
-            self.pr_manager.remove_pr(pr['number'])
+            self._handle_closed_pr(pr)
 
     def _handle_new_pr(self, pr):
         """Handle new pull request."""
         repo_url = pr['base']['repo']['url']
+        repo_name = pr['base']['repo']['full_name']
         pr_number = pr['number']
+
+        # Create new PR record
+        new_pr = PullRequest(
+            pr_number=pr_number,
+            repo_name=repo_name,
+            title=pr['title'],
+            status='pending_reviewer_choice'
+        )
+        self.db.session.add(new_pr)
+        self.db.session.commit()
 
         comment = (
             "👋 Hi! Would you like to pick specific reviewers for this PR? "
@@ -53,7 +65,17 @@ class GitHubBot:
         )
 
         self._create_comment(repo_url, pr_number, comment)
-        self.pr_manager.add_pr(pr_number, pr)
+
+    def _handle_closed_pr(self, pr):
+        """Handle closed pull request."""
+        pr_record = PullRequest.query.filter_by(
+            pr_number=pr['number'],
+            repo_name=pr['base']['repo']['full_name']
+        ).first()
+
+        if pr_record:
+            pr_record.status = 'closed'
+            self.db.session.commit()
 
     def handle_review_event(self, data):
         """Handle pull request review events."""
@@ -62,6 +84,22 @@ class GitHubBot:
 
         if not review or not pr:
             return
+
+        pr_record = PullRequest.query.filter_by(
+            pr_number=pr['number'],
+            repo_name=pr['base']['repo']['full_name']
+        ).first()
+
+        if not pr_record:
+            return
+
+        new_review = Review(
+            pr_id=pr_record.id,
+            reviewer=review['user']['login'],
+            status=review['state']
+        )
+        self.db.session.add(new_review)
+        self.db.session.commit()
 
         if review['state'] == 'approved':
             self._handle_approved_review(pr)
@@ -98,7 +136,12 @@ class GitHubBot:
 
     def get_stats(self):
         """Get bot statistics."""
+        active_prs = PullRequest.query.filter(
+            PullRequest.status != 'closed'
+        ).count()
+        total_reviews = Review.query.count()
+
         return {
-            'active_prs': len(self.pr_manager.prs),
-            'total_reviews': self.pr_manager.total_reviews
+            'active_prs': active_prs,
+            'total_reviews': total_reviews
         }
