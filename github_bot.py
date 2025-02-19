@@ -105,6 +105,30 @@ class GitHubBot:
         self.db.session.add(new_review)
         self.db.session.commit()
 
+        # Update PR status to reviewed
+        pr_record.status = 'reviewed'
+        self.db.session.commit()
+
+        # Update the initial bot comment
+        app_url = "https://" + os.environ.get('REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
+        comments_url = f"{pr['base']['repo']['url']}/issues/{pr['number']}/comments"
+        
+        # Get the bot's first comment
+        response = requests.get(comments_url, headers=self.headers)
+        if response.status_code == 200:
+            bot_comments = [c for c in response.json() if c['user']['type'] == 'Bot']
+            if bot_comments:
+                first_comment = bot_comments[0]
+                update_url = f"{pr['base']['repo']['url']}/issues/comments/{first_comment['id']}"
+                
+                new_comment = (
+                    "✅ This PR has been reviewed!\n\n"
+                    f"To mark this PR as needing another review, visit:\n"
+                    f"{app_url}/mark-needs-review/{pr_record.repo_name}/{pr_record.pr_number}"
+                )
+                
+                requests.patch(update_url, headers=self.headers, json={'body': new_comment})
+
         if review['state'] == 'approved':
             self._handle_approved_review(pr)
         elif review['state'] == 'changes_requested':

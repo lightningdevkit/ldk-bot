@@ -1,0 +1,12 @@
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h2>PR #{{ pr_number }} Status Updated</h2>
+        <p class="mt-3">The PR has been marked as needing review.</p>
+        <p>A bot will assign new reviewers soon.</p>
+    </div>
+</div>
+{% endblock %}
