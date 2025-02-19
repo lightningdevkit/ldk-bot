@@ -59,9 +59,10 @@ def index():
     """Render the dashboard page."""
     return render_template('index.html')
 
-@app.route('/choose-reviewers/<repo_name>/<int:pr_number>')
-def choose_reviewers(repo_name, pr_number):
+@app.route('/choose-reviewers/<org>/<repo>/<int:pr_number>')
+def choose_reviewers(org, repo, pr_number):
     """Render the reviewer selection page."""
+    repo_name = f"{org}/{repo}"
     return render_template('choose_reviewers.html', repo_name=repo_name, pr_number=pr_number)
 
 @app.route('/submit-reviewers', methods=['POST'])

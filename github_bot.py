@@ -61,9 +61,10 @@ class GitHubBot:
         self.db.session.commit()
 
         app_url = "https://" + os.environ.get('REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
+        [org, repo] = repo_name.split('/')
         comment = (
             f"👋 Hi! Please choose reviewers for this PR by visiting:\n"
-            f"{app_url}/choose-reviewers/{repo_name}/{pr_number}\n\n"
+            f"{app_url}/choose-reviewers/{org}/{repo}/{pr_number}\n\n"
             "If no reviewers are chosen within 24 hours, I'll automatically assign them."
         )
 
