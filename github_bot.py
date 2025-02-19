@@ -3,7 +3,7 @@ import hashlib
 import logging
 import requests
 from models import PullRequest, Review
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class GitHubBot:
     def __init__(self, token, webhook_secret, db):
@@ -52,7 +52,9 @@ class GitHubBot:
             pr_number=pr_number,
             repo_name=repo_name,
             title=pr['title'],
-            status='pending_reviewer_choice'
+            status='pending_reviewer_choice',
+            created_at=datetime.utcnow(),
+            reminder_count=0
         )
         self.db.session.add(new_pr)
         self.db.session.commit()
@@ -145,3 +147,66 @@ class GitHubBot:
             'active_prs': active_prs,
             'total_reviews': total_reviews
         }
+
+    def check_and_send_reminders(self):
+        """Check for PRs needing review reminders and send them."""
+        self.logger.info("Checking for PRs needing review reminders...")
+
+        # Get PRs that need reminders (24 hours since last reminder or PR creation)
+        current_time = datetime.utcnow()
+        reminder_threshold = current_time - timedelta(hours=24)
+
+        prs_needing_reminders = PullRequest.query.filter(
+            PullRequest.status != 'closed',
+            (
+                (PullRequest.last_reminder_sent.is_(None) & (PullRequest.created_at <= reminder_threshold)) |
+                (PullRequest.last_reminder_sent <= reminder_threshold)
+            )
+        ).all()
+
+        for pr in prs_needing_reminders:
+            self._send_review_reminder(pr)
+
+    def _send_review_reminder(self, pr):
+        """Send a reminder comment on a PR."""
+        try:
+            # Get assigned reviewers for the PR
+            repo_url = f"https://api.github.com/repos/{pr.repo_name}"
+            pr_url = f"{repo_url}/pulls/{pr.pr_number}"
+
+            response = requests.get(pr_url, headers=self.headers)
+            if response.status_code != 200:
+                self.logger.error(f"Failed to fetch PR data: {response.text}")
+                return
+
+            pr_data = response.json()
+            reviewers = [user['login'] for user in pr_data.get('requested_reviewers', [])]
+
+            if not reviewers:
+                self.logger.info(f"No reviewers to remind for PR #{pr.pr_number}")
+                return
+
+            # Create reminder message tagging all reviewers
+            reviewer_tags = ' '.join([f'@{reviewer}' for reviewer in reviewers])
+            reminder_count = pr.reminder_count + 1
+            ordinal = lambda n: "%d%s" % (n,"tsnrhtdd"[(n//10%10!=1)*(n%10<4)*n%10::4])
+
+            message = (
+                f"🔔 {ordinal(reminder_count)} Reminder\n\n"
+                f"Hey {reviewer_tags}! This PR has been waiting for your review.\n"
+                "Please take a look when you have a chance. If you're unable to review, "
+                "please let us know so we can find another reviewer."
+            )
+
+            # Post the reminder comment
+            self._create_comment(repo_url, pr.pr_number, message)
+
+            # Update reminder tracking
+            pr.last_reminder_sent = datetime.utcnow()
+            pr.reminder_count = reminder_count
+            self.db.session.commit()
+
+            self.logger.info(f"Sent review reminder for PR #{pr.pr_number}")
+
+        except Exception as e:
+            self.logger.error(f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")

@@ -4,6 +4,9 @@ from flask import Flask, request, render_template, jsonify
 from dotenv import load_dotenv
 from db import db
 from github_bot import GitHubBot
+from datetime import datetime
+import threading
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -30,6 +33,21 @@ github_bot = GitHubBot(
     webhook_secret=os.environ.get("WEBHOOK_SECRET"),
     db=db
 )
+
+def reminder_scheduler():
+    """Background thread to periodically check and send reminders."""
+    with app.app_context():
+        while True:
+            try:
+                github_bot.check_and_send_reminders()
+            except Exception as e:
+                logger.error(f"Error in reminder scheduler: {str(e)}")
+            # Sleep for 1 hour before next check
+            time.sleep(3600)
+
+# Start the reminder scheduler thread
+reminder_thread = threading.Thread(target=reminder_scheduler, daemon=True)
+reminder_thread.start()
 
 with app.app_context():
     # Import models here to avoid circular imports
@@ -66,3 +84,13 @@ def webhook():
 def stats():
     """Return bot statistics."""
     return jsonify(github_bot.get_stats())
+
+@app.route('/check-reminders', methods=['POST'])
+def check_reminders():
+    """Manually trigger reminder checks."""
+    try:
+        github_bot.check_and_send_reminders()
+        return jsonify({'status': 'success', 'message': 'Reminder check triggered'}), 200
+    except Exception as e:
+        logger.error(f"Error checking reminders: {str(e)}")
+        return jsonify({'error': str(e)}), 500

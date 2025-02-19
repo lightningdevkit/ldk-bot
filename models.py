@@ -11,6 +11,8 @@ class PullRequest(db.Model):
     status = db.Column(db.String(50), default='pending_reviewer_choice')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_reminder_sent = db.Column(db.DateTime, nullable=True)
+    reminder_count = db.Column(db.Integer, default=0)
     reviews = db.relationship('Review', backref='pull_request', lazy=True)
 
 class Review(db.Model):
