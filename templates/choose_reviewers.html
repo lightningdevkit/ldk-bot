@@ -1,0 +1,19 @@
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h2>Choose Reviewers for PR #{{ pr_number }}</h2>
+        <form id="reviewerForm" action="/submit-reviewers" method="POST">
+            <input type="hidden" name="pr_number" value="{{ pr_number }}">
+            <input type="hidden" name="repo_name" value="{{ repo_name }}">
+            <div class="mb-3">
+                <label for="reviewers" class="form-label">GitHub Usernames (comma-separated)</label>
+                <input type="text" class="form-control" id="reviewers" name="reviewers" placeholder="user1, user2, user3">
+            </div>
+            <button type="submit" class="btn btn-primary">Assign Reviewers</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

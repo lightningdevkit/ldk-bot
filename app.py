@@ -59,6 +59,24 @@ def index():
     """Render the dashboard page."""
     return render_template('index.html')
 
+@app.route('/choose-reviewers/<repo_name>/<int:pr_number>')
+def choose_reviewers(repo_name, pr_number):
+    """Render the reviewer selection page."""
+    return render_template('choose_reviewers.html', repo_name=repo_name, pr_number=pr_number)
+
+@app.route('/submit-reviewers', methods=['POST'])
+def submit_reviewers():
+    """Handle reviewer submission."""
+    pr_number = request.form.get('pr_number')
+    repo_name = request.form.get('repo_name')
+    reviewers = [r.strip() for r in request.form.get('reviewers', '').split(',') if r.strip()]
+    
+    try:
+        github_bot.assign_reviewers(repo_name, pr_number, reviewers)
+        return jsonify({'status': 'success'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Handle GitHub webhook events."""

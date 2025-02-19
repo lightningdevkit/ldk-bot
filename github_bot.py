@@ -59,11 +59,11 @@ class GitHubBot:
         self.db.session.add(new_pr)
         self.db.session.commit()
 
+        app_url = "https://" + os.environ.get('REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
         comment = (
-            "👋 Hi! Would you like to pick specific reviewers for this PR? "
-            "If yes, please mention them in a comment. "
-            "If not, I'll automatically assign reviewers for you. "
-            "Please respond within 24 hours."
+            f"👋 Hi! Please choose reviewers for this PR by visiting:\n"
+            f"{app_url}/choose-reviewers/{repo_name}/{pr_number}\n\n"
+            "If no reviewers are chosen within 24 hours, I'll automatically assign them."
         )
 
         self._create_comment(repo_url, pr_number, comment)
@@ -124,6 +124,20 @@ class GitHubBot:
             "Please address the feedback and let me know when you're ready for another review."
         )
         self._create_comment(pr['base']['repo']['url'], pr['number'], comment)
+
+    def assign_reviewers(self, repo_name, pr_number, reviewers):
+        """Assign reviewers to a PR."""
+        url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/requested_reviewers"
+        response = requests.post(
+            url,
+            headers=self.headers,
+            json={'reviewers': reviewers}
+        )
+        if response.status_code != 201:
+            raise Exception(f"Failed to assign reviewers: {response.text}")
+        
+        comment = f"✅ Assigned reviewers: {', '.join(['@' + r for r in reviewers])}"
+        self._create_comment(f"https://api.github.com/repos/{repo_name}", pr_number, comment)
 
     def _create_comment(self, repo_url, pr_number, body):
         """Create a comment on a PR."""
