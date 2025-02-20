@@ -6,7 +6,9 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
+
 class GitHubBot:
+
     def __init__(self, token, webhook_secret, db):
         self.token = token
         self.webhook_secret = webhook_secret.encode()
@@ -22,11 +24,8 @@ class GitHubBot:
         if not signature:
             return False
 
-        expected = hmac.new(
-            self.webhook_secret,
-            payload,
-            hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self.webhook_secret, payload,
+                            hashlib.sha256).hexdigest()
         return hmac.compare_digest(f"sha256={expected}", signature)
 
     def handle_pr_event(self, data):
@@ -49,18 +48,17 @@ class GitHubBot:
         pr_number = pr['number']
 
         # Create new PR record
-        new_pr = PullRequest(
-            pr_number=pr_number,
-            repo_name=repo_name,
-            title=pr['title'],
-            status='pending_reviewer_choice',
-            created_at=datetime.utcnow(),
-            reminder_count=0
-        )
+        new_pr = PullRequest(pr_number=pr_number,
+                             repo_name=repo_name,
+                             title=pr['title'],
+                             status='pending_reviewer_choice',
+                             created_at=datetime.utcnow(),
+                             reminder_count=0)
         self.db.session.add(new_pr)
         self.db.session.commit()
 
-        app_url = "https://" + os.environ.get('REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
+        app_url = "https://" + os.environ.get(
+            'REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
         [org, repo] = repo_name.split('/')
         comment = (
             f"👋 Hi! Please choose reviewers for this PR by visiting:\n"
@@ -74,8 +72,7 @@ class GitHubBot:
         """Handle closed pull request."""
         pr_record = PullRequest.query.filter_by(
             pr_number=pr['number'],
-            repo_name=pr['base']['repo']['full_name']
-        ).first()
+            repo_name=pr['base']['repo']['full_name']).first()
 
         if pr_record:
             pr_record.status = 'closed'
@@ -87,21 +84,20 @@ class GitHubBot:
         pr = data.get('pull_request')
 
         if not review or not pr:
+            self.logger.error("No review/PR in req!")
             return
 
         pr_record = PullRequest.query.filter_by(
             pr_number=pr['number'],
-            repo_name=pr['base']['repo']['full_name']
-        ).first()
+            repo_name=pr['base']['repo']['full_name']).first()
 
         if not pr_record:
+            self.logger.error(f"No PR Record for: {pr['number']}")
             return
 
-        new_review = Review(
-            pr_id=pr_record.id,
-            reviewer=review['user']['login'],
-            status=review['state']
-        )
+        new_review = Review(pr_id=pr_record.id,
+                            reviewer=review['user']['login'],
+                            status=review['state'])
         self.db.session.add(new_review)
         self.db.session.commit()
 
@@ -110,24 +106,33 @@ class GitHubBot:
         self.db.session.commit()
 
         # Update the initial bot comment
-        app_url = "https://" + os.environ.get('REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
+        app_url = "https://" + os.environ.get(
+            'REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
         comments_url = f"{pr['base']['repo']['url']}/issues/{pr['number']}/comments"
-        
+
         # Get the bot's first comment
         response = requests.get(comments_url, headers=self.headers)
+        self.logger.info(
+            f"got response {response.status_code} to URL {comments_url}:\n{response.json()}"
+        )
         if response.status_code == 200:
-            bot_comments = [c for c in response.json() if c['user']['type'] == 'Bot']
+            bot_comments = [
+                c for c in response.json()
+                if c['user']['login'] == 'ldk-reviews-bot'
+            ]
             if bot_comments:
                 first_comment = bot_comments[0]
                 update_url = f"{pr['base']['repo']['url']}/issues/comments/{first_comment['id']}"
-                
+
                 new_comment = (
                     "✅ This PR has been reviewed!\n\n"
                     f"To mark this PR as needing another review, visit:\n"
                     f"{app_url}/mark-needs-review/{pr_record.repo_name}/{pr_record.pr_number}"
                 )
-                
-                requests.patch(update_url, headers=self.headers, json={'body': new_comment})
+
+                requests.patch(update_url,
+                               headers=self.headers,
+                               json={'body': new_comment})
 
         if review['state'] == 'approved':
             self._handle_approved_review(pr)
@@ -136,11 +141,9 @@ class GitHubBot:
 
     def _handle_approved_review(self, pr):
         """Handle approved review."""
-        comment = (
-            "✅ This PR has been approved! "
-            "Would you like another round of review? "
-            "Please let me know in a comment."
-        )
+        comment = ("✅ This PR has been approved! "
+                   "Would you like another round of review? "
+                   "Please let me know in a comment.")
         self._create_comment(pr['base']['repo']['url'], pr['number'], comment)
 
     def _handle_changes_requested(self, pr):
@@ -154,39 +157,32 @@ class GitHubBot:
     def assign_reviewers(self, repo_name, pr_number, reviewers):
         """Assign reviewers to a PR."""
         url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/requested_reviewers"
-        response = requests.post(
-            url,
-            headers=self.headers,
-            json={'reviewers': reviewers}
-        )
+        response = requests.post(url,
+                                 headers=self.headers,
+                                 json={'reviewers': reviewers})
         if response.status_code != 201:
             raise Exception(f"Failed to assign reviewers: {response.text}")
-        
+
         comment = f"✅ Assigned reviewers: {', '.join(['@' + r for r in reviewers])}"
-        self._create_comment(f"https://api.github.com/repos/{repo_name}", pr_number, comment)
+        self._create_comment(f"https://api.github.com/repos/{repo_name}",
+                             pr_number, comment)
 
     def _create_comment(self, repo_url, pr_number, body):
         """Create a comment on a PR."""
         comments_url = f"{repo_url}/issues/{pr_number}/comments"
-        response = requests.post(
-            comments_url,
-            headers=self.headers,
-            json={'body': body}
-        )
+        response = requests.post(comments_url,
+                                 headers=self.headers,
+                                 json={'body': body})
         if response.status_code != 201:
             self.logger.error(f"Failed to create comment: {response.text}")
 
     def get_stats(self):
         """Get bot statistics."""
         active_prs = PullRequest.query.filter(
-            PullRequest.status != 'closed'
-        ).count()
+            PullRequest.status != 'closed').count()
         total_reviews = Review.query.count()
 
-        return {
-            'active_prs': active_prs,
-            'total_reviews': total_reviews
-        }
+        return {'active_prs': active_prs, 'total_reviews': total_reviews}
 
     def check_and_send_reminders(self):
         """Check for PRs needing review reminders and send them."""
@@ -198,11 +194,9 @@ class GitHubBot:
 
         prs_needing_reminders = PullRequest.query.filter(
             PullRequest.status != 'closed',
-            (
-                (PullRequest.last_reminder_sent.is_(None) & (PullRequest.created_at <= reminder_threshold)) |
-                (PullRequest.last_reminder_sent <= reminder_threshold)
-            )
-        ).all()
+            ((PullRequest.last_reminder_sent.is_(None) &
+              (PullRequest.created_at <= reminder_threshold)) |
+             (PullRequest.last_reminder_sent <= reminder_threshold))).all()
 
         for pr in prs_needing_reminders:
             self._send_review_reminder(pr)
@@ -220,23 +214,28 @@ class GitHubBot:
                 return
 
             pr_data = response.json()
-            reviewers = [user['login'] for user in pr_data.get('requested_reviewers', [])]
+            reviewers = [
+                user['login']
+                for user in pr_data.get('requested_reviewers', [])
+            ]
 
             if not reviewers:
-                self.logger.info(f"No reviewers to remind for PR #{pr.pr_number}")
+                self.logger.info(
+                    f"No reviewers to remind for PR #{pr.pr_number}")
                 return
 
             # Create reminder message tagging all reviewers
-            reviewer_tags = ' '.join([f'@{reviewer}' for reviewer in reviewers])
+            reviewer_tags = ' '.join(
+                [f'@{reviewer}' for reviewer in reviewers])
             reminder_count = pr.reminder_count + 1
-            ordinal = lambda n: "%d%s" % (n,"tsnrhtdd"[(n//10%10!=1)*(n%10<4)*n%10::4])
+            ordinal = lambda n: "%d%s" % (n, "tsnrhtdd"[
+                (n // 10 % 10 != 1) * (n % 10 < 4) * n % 10::4])
 
             message = (
                 f"🔔 {ordinal(reminder_count)} Reminder\n\n"
                 f"Hey {reviewer_tags}! This PR has been waiting for your review.\n"
                 "Please take a look when you have a chance. If you're unable to review, "
-                "please let us know so we can find another reviewer."
-            )
+                "please let us know so we can find another reviewer.")
 
             # Post the reminder comment
             self._create_comment(repo_url, pr.pr_number, message)
@@ -249,4 +248,5 @@ class GitHubBot:
             self.logger.info(f"Sent review reminder for PR #{pr.pr_number}")
 
         except Exception as e:
-            self.logger.error(f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")
+            self.logger.error(
+                f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")
