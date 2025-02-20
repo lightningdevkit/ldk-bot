@@ -80,8 +80,22 @@ class GitHubBot:
 
     def handle_review_event(self, data):
         """Handle pull request review events."""
-        review = data.get('review')
+        action = data.get('action')
         pr = data.get('pull_request')
+        review = data.get('review')
+
+        if action == 'review_requested':
+            # Handle re-requesting review
+            if pr:
+                pr_record = PullRequest.query.filter_by(
+                    pr_number=pr['number'],
+                    repo_name=pr['base']['repo']['full_name']).first()
+                
+                if pr_record:
+                    pr_record.status = 'needs_review'
+                    self.db.session.commit()
+                    self.request_review(pr_record)
+            return
 
         if not review or not pr:
             self.logger.error("No review/PR in req!")

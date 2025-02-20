@@ -104,20 +104,7 @@ def stats():
     """Return bot statistics."""
     return jsonify(github_bot.get_stats())
 
-@app.route('/mark-needs-review/<path:repo_name>/<int:pr_number>')
-def mark_needs_review(repo_name, pr_number):
-    """Mark a PR as needing review."""
-    pr_record = PullRequest.query.filter_by(
-        pr_number=pr_number,
-        repo_name=repo_name
-    ).first()
 
-    if pr_record:
-        pr_record.status = 'needs_review'
-        db.session.commit()
-        github_bot.request_review(pr_record)
-        return render_template('needs_review.html', pr_number=pr_number, repo_name=repo_name)
-    return "PR not found", 404
 
 @app.route('/check-reminders', methods=['POST'])
 def check_reminders():
