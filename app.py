@@ -115,6 +115,7 @@ def mark_needs_review(repo_name, pr_number):
     if pr_record:
         pr_record.status = 'needs_review'
         db.session.commit()
+        github_bot.request_review(pr_record)
         return render_template('needs_review.html', pr_number=pr_number, repo_name=repo_name)
     return "PR not found", 404
 

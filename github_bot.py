@@ -210,6 +210,33 @@ class GitHubBot:
             # Ensure the session is clean for the next run
             self.db.session.rollback()
 
+    def request_review(self, pr_record):
+        """Request reviews when PR is marked as needing review."""
+        try:
+            # Get assigned reviewers for the PR
+            repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
+            pr_url = f"{repo_url}/pulls/{pr_record.pr_number}"
+
+            response = requests.get(pr_url, headers=self.headers)
+            if response.status_code != 200:
+                self.logger.error(f"Failed to fetch PR data: {response.text}")
+                return
+
+            pr_data = response.json()
+            reviewers = [user['login'] for user in pr_data.get('requested_reviewers', [])]
+
+            if reviewers:
+                reviewer_tags = ' '.join([f'@{reviewer}' for reviewer in reviewers])
+                message = (
+                    f"👋 Hey {reviewer_tags}!\n\n"
+                    "This PR has been marked as needing another review. "
+                    "Could you please take another look when you have a chance?"
+                )
+                self._create_comment(repo_url, pr_record.pr_number, message)
+
+        except Exception as e:
+            self.logger.error(f"Error requesting review for PR #{pr_record.pr_number}: {str(e)}")
+
     def _send_review_reminder(self, pr):
         """Send a reminder comment on a PR."""
         try:
