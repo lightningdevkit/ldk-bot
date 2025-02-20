@@ -187,7 +187,7 @@ class GitHubBot:
     def check_and_send_reminders(self):
         """Check for PRs needing review reminders and send them."""
         self.logger.info("Checking for PRs needing review reminders...")
-        
+
         try:
             # Get PRs that need reminders (24 hours since last reminder or PR creation)
             current_time = datetime.utcnow()
@@ -200,11 +200,12 @@ class GitHubBot:
                         PullRequest.status != 'closed',
                         ((PullRequest.last_reminder_sent.is_(None) &
                           (PullRequest.created_at <= reminder_threshold)) |
-                         (PullRequest.last_reminder_sent <= reminder_threshold))).all()
+                         (PullRequest.last_reminder_sent
+                          <= reminder_threshold))).all()
 
                     for pr in prs_needing_reminders:
                         self._send_review_reminder(pr)
-                        
+
         except Exception as e:
             self.logger.error(f"Error in reminder scheduler: {str(e)}")
             # Ensure the session is clean for the next run
@@ -223,10 +224,15 @@ class GitHubBot:
                 return
 
             pr_data = response.json()
-            reviewers = [user['login'] for user in pr_data.get('requested_reviewers', [])]
+            self.logger.info(f"Got {pr_data}")
+            reviewers = [
+                user['login']
+                for user in pr_data.get('requested_reviewers', [])
+            ]
 
             if reviewers:
-                reviewer_tags = ' '.join([f'@{reviewer}' for reviewer in reviewers])
+                reviewer_tags = ' '.join(
+                    [f'@{reviewer}' for reviewer in reviewers])
                 message = (
                     f"👋 Hey {reviewer_tags}!\n\n"
                     "This PR has been marked as needing another review. "
@@ -235,7 +241,9 @@ class GitHubBot:
                 self._create_comment(repo_url, pr_record.pr_number, message)
 
         except Exception as e:
-            self.logger.error(f"Error requesting review for PR #{pr_record.pr_number}: {str(e)}")
+            self.logger.error(
+                f"Error requesting review for PR #{pr_record.pr_number}: {str(e)}"
+            )
 
     def _send_review_reminder(self, pr):
         """Send a reminder comment on a PR."""
@@ -250,6 +258,7 @@ class GitHubBot:
                 return
 
             pr_data = response.json()
+            self.logger.info(f"Got {pr_data}")
             reviewers = [
                 user['login']
                 for user in pr_data.get('requested_reviewers', [])
