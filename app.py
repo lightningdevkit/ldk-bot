@@ -51,7 +51,7 @@ reminder_thread.start()
 
 with app.app_context():
     # Import models here to avoid circular imports
-    import models  # noqa: F401
+    from models import PullRequest, Review  # noqa: F401
     db.create_all()
 
 @app.route('/')
@@ -71,7 +71,7 @@ def submit_reviewers():
     pr_number = request.form.get('pr_number')
     repo_name = request.form.get('repo_name')
     reviewers = [r.strip() for r in request.form.get('reviewers', '').split(',') if r.strip()]
-    
+
     try:
         github_bot.assign_reviewers(repo_name, pr_number, reviewers)
         return jsonify({'status': 'success'}), 200
@@ -111,7 +111,7 @@ def mark_needs_review(repo_name, pr_number):
         pr_number=pr_number,
         repo_name=repo_name
     ).first()
-    
+
     if pr_record:
         pr_record.status = 'needs_review'
         db.session.commit()
