@@ -187,19 +187,28 @@ class GitHubBot:
     def check_and_send_reminders(self):
         """Check for PRs needing review reminders and send them."""
         self.logger.info("Checking for PRs needing review reminders...")
+        
+        try:
+            # Get PRs that need reminders (24 hours since last reminder or PR creation)
+            current_time = datetime.utcnow()
+            reminder_threshold = current_time - timedelta(hours=24)
 
-        # Get PRs that need reminders (24 hours since last reminder or PR creation)
-        current_time = datetime.utcnow()
-        reminder_threshold = current_time - timedelta(hours=24)
+            with self.db.engine.connect() as conn:
+                # Start a transaction
+                with conn.begin():
+                    prs_needing_reminders = PullRequest.query.filter(
+                        PullRequest.status != 'closed',
+                        ((PullRequest.last_reminder_sent.is_(None) &
+                          (PullRequest.created_at <= reminder_threshold)) |
+                         (PullRequest.last_reminder_sent <= reminder_threshold))).all()
 
-        prs_needing_reminders = PullRequest.query.filter(
-            PullRequest.status != 'closed',
-            ((PullRequest.last_reminder_sent.is_(None) &
-              (PullRequest.created_at <= reminder_threshold)) |
-             (PullRequest.last_reminder_sent <= reminder_threshold))).all()
-
-        for pr in prs_needing_reminders:
-            self._send_review_reminder(pr)
+                    for pr in prs_needing_reminders:
+                        self._send_review_reminder(pr)
+                        
+        except Exception as e:
+            self.logger.error(f"Error in reminder scheduler: {str(e)}")
+            # Ensure the session is clean for the next run
+            self.db.session.rollback()
 
     def _send_review_reminder(self, pr):
         """Send a reminder comment on a PR."""
