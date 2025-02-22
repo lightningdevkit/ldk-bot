@@ -202,23 +202,36 @@ class GitHubBot:
         """Check for PRs needing review reminders and send them."""
         self.logger.info("Checking for PRs needing review reminders...")
 
-        try:
-            # Get PRs that need reminders (24 hours since last reminder or PR creation)
-            current_time = datetime.utcnow()
-            reminder_threshold = current_time - timedelta(minutes=10)
+        max_retries = 3
+        retry_count = 0
 
-            with self.db.engine.connect() as conn:
-                # Start a transaction
-                with conn.begin():
-                    prs_needing_reminders = PullRequest.query.filter(
-                        PullRequest.status != 'closed',
-                        ((PullRequest.last_reminder_sent.is_(None) &
-                          (PullRequest.created_at <= reminder_threshold)) |
-                         (PullRequest.last_reminder_sent
-                          <= reminder_threshold))).all()
+        while retry_count < max_retries:
+            try:
+                current_time = datetime.utcnow()
+                reminder_threshold = current_time - timedelta(minutes=10)
 
-                    for pr in prs_needing_reminders:
-                        self._send_review_reminder(pr)
+                # Force a new connection from the pool
+                self.db.session.remove()
+                
+                prs_needing_reminders = PullRequest.query.filter(
+                    PullRequest.status != 'closed',
+                    ((PullRequest.last_reminder_sent.is_(None) &
+                      (PullRequest.created_at <= reminder_threshold)) |
+                     (PullRequest.last_reminder_sent
+                      <= reminder_threshold))).all()
+
+                for pr in prs_needing_reminders:
+                    self._send_review_reminder(pr)
+                
+                break  # Success, exit the retry loop
+                
+            except Exception as e:
+                retry_count += 1
+                self.logger.error(f"Attempt {retry_count} failed: {str(e)}")
+                if retry_count == max_retries:
+                    self.logger.error("Max retries reached, giving up")
+                    raise
+                self.db.session.rollback()
 
         except Exception as e:
             self.logger.error(f"Error in reminder scheduler: {str(e)}")
