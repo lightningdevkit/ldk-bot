@@ -63,7 +63,7 @@ class GitHubBot:
         comment = (
             f"👋 Hi! Please choose reviewers for this PR by visiting:\n"
             f"{app_url}/choose-reviewers/{org}/{repo}/{pr_number}\n\n"
-            "If no reviewers are chosen within 24 hours, I'll automatically assign them."
+            "If no reviewers are chosen within 10 minutes, I'll automatically assign them."
         )
 
         self._create_comment(repo_url, pr_number, comment)
@@ -205,7 +205,7 @@ class GitHubBot:
         try:
             # Get PRs that need reminders (24 hours since last reminder or PR creation)
             current_time = datetime.utcnow()
-            reminder_threshold = current_time - timedelta(hours=24)
+            reminder_threshold = current_time - timedelta(minutes=10)
 
             with self.db.engine.connect() as conn:
                 # Start a transaction
