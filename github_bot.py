@@ -52,7 +52,8 @@ class GitHubBot:
                              title=pr['title'],
                              status='pending_reviewer_choice',
                              created_at=datetime.utcnow(),
-                             reminder_count=0)
+                             reminder_count=0,
+                             reminder_in_progress=False) #added
         self.db.session.add(new_pr)
         self.db.session.commit()
 
@@ -89,7 +90,7 @@ class GitHubBot:
                 pr_record = PullRequest.query.filter_by(
                     pr_number=pr['number'],
                     repo_name=pr['base']['repo']['full_name']).first()
-                
+
                 if pr_record:
                     pr_record.status = 'needs_review'
                     self.db.session.commit()
@@ -237,7 +238,7 @@ class GitHubBot:
             pr_author = pr_data['user']['login']
 
             # Get collaborators excluding PR author
-            collaborators = [c for c in self.get_repo_collaborators(pr_record.repo_name) 
+            collaborators = [c for c in self.get_repo_collaborators(pr_record.repo_name)
                            if c != pr_author]
 
             if not collaborators:
@@ -277,7 +278,9 @@ class GitHubBot:
             while retry_count < max_retries:
                 try:
                     current_time = datetime.utcnow()
-                    reminder_threshold = current_time - timedelta(minutes=10)
+                    # Changed from 10 minutes to 24 hours for reminders
+                    reminder_threshold = current_time - timedelta(hours=24)
+                    auto_assign_threshold = current_time - timedelta(minutes=10)
 
                     # Force a new connection from the pool
                     self.db.session.remove()
@@ -285,22 +288,31 @@ class GitHubBot:
                     # Find PRs needing reviewer assignment (no reviewers after 10 minutes)
                     prs_needing_assignment = PullRequest.query.filter(
                         PullRequest.status == 'pending_reviewer_choice',
-                        PullRequest.created_at <= reminder_threshold
+                        PullRequest.created_at <= auto_assign_threshold
                     ).all()
 
                     # Auto-assign reviewers for these PRs
                     for pr in prs_needing_assignment:
                         self.auto_assign_reviewers(pr)
 
-                    # Original reminder logic
-                    prs_needing_reminders = PullRequest.query.filter(
+                    # Original reminder logic - modified to use 24 hour threshold
+                    # Added distinct() to prevent duplicate processing
+                    prs_needing_reminders = PullRequest.query.distinct().filter(
                         PullRequest.status != 'closed',
                         ((PullRequest.last_reminder_sent.is_(None) &
                           (PullRequest.created_at <= reminder_threshold)) |
                          (PullRequest.last_reminder_sent <= reminder_threshold))).all()
 
                     for pr in prs_needing_reminders:
-                        self._send_review_reminder(pr)
+                        # Add lock check to prevent concurrent reminder sends
+                        if not pr.reminder_in_progress:
+                            pr.reminder_in_progress = True
+                            self.db.session.commit()
+                            try:
+                                self._send_review_reminder(pr)
+                            finally:
+                                pr.reminder_in_progress = False
+                                self.db.session.commit()
 
                     break  # Success, exit the retry loop
 
