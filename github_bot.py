@@ -227,7 +227,23 @@ class GitHubBot:
     def auto_assign_reviewers(self, pr_record):
         """Auto-assign reviewers to a PR based on workload."""
         try:
-            collaborators = self.get_repo_collaborators(pr_record.repo_name)
+            # Get PR author
+            pr_url = f"https://api.github.com/repos/{pr_record.repo_name}/pulls/{pr_record.pr_number}"
+            pr_response = requests.get(pr_url, headers=self.headers)
+            if pr_response.status_code != 200:
+                self.logger.error(f"Failed to fetch PR data: {pr_response.text}")
+                return
+            pr_data = pr_response.json()
+            pr_author = pr_data['user']['login']
+
+            # Get collaborators excluding PR author
+            collaborators = [c for c in self.get_repo_collaborators(pr_record.repo_name) 
+                           if c != pr_author]
+
+            if not collaborators:
+                self.logger.error(f"No eligible reviewers found for PR #{pr_record.pr_number}")
+                return
+
             reviewer_counts = self.get_reviewer_pr_counts(pr_record.repo_name)
 
             # Initialize counts for new collaborators
@@ -238,8 +254,8 @@ class GitHubBot:
             # Sort collaborators by PR count
             sorted_reviewers = sorted(collaborators, key=lambda x: reviewer_counts.get(x, 0))
 
-            # Select the two reviewers with least PRs
-            selected_reviewers = sorted_reviewers[:2]
+            # Select the two reviewers with least PRs, or all available if less than 2
+            selected_reviewers = sorted_reviewers[:min(2, len(sorted_reviewers))]
 
             if selected_reviewers:
                 self.assign_reviewers(pr_record.repo_name, pr_record.pr_number, selected_reviewers)
