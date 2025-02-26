@@ -6,7 +6,6 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
-
 class GitHubBot:
 
     def __init__(self, token, webhook_secret, db):
@@ -198,8 +197,61 @@ class GitHubBot:
 
         return {'active_prs': active_prs, 'total_reviews': total_reviews}
 
+    def get_repo_collaborators(self, repo_name):
+        """Get list of collaborators for a repository."""
+        url = f"https://api.github.com/repos/{repo_name}/collaborators"
+        response = requests.get(url, headers=self.headers)
+        if response.status_code != 200:
+            self.logger.error(f"Failed to get collaborators: {response.text}")
+            return []
+        return [user['login'] for user in response.json()]
+
+    def get_reviewer_pr_counts(self, repo_name):
+        """Get count of open PRs assigned to each reviewer."""
+        reviewer_counts = {}
+
+        # Get all open PRs
+        url = f"https://api.github.com/repos/{repo_name}/pulls"
+        response = requests.get(url, headers=self.headers)
+        if response.status_code != 200:
+            self.logger.error(f"Failed to get PRs: {response.text}")
+            return {}
+
+        for pr in response.json():
+            for reviewer in pr.get('requested_reviewers', []):
+                reviewer_login = reviewer['login']
+                reviewer_counts[reviewer_login] = reviewer_counts.get(reviewer_login, 0) + 1
+
+        return reviewer_counts
+
+    def auto_assign_reviewers(self, pr_record):
+        """Auto-assign reviewers to a PR based on workload."""
+        try:
+            collaborators = self.get_repo_collaborators(pr_record.repo_name)
+            reviewer_counts = self.get_reviewer_pr_counts(pr_record.repo_name)
+
+            # Initialize counts for new collaborators
+            for collaborator in collaborators:
+                if collaborator not in reviewer_counts:
+                    reviewer_counts[collaborator] = 0
+
+            # Sort collaborators by PR count
+            sorted_reviewers = sorted(collaborators, key=lambda x: reviewer_counts.get(x, 0))
+
+            # Select the two reviewers with least PRs
+            selected_reviewers = sorted_reviewers[:2]
+
+            if selected_reviewers:
+                self.assign_reviewers(pr_record.repo_name, pr_record.pr_number, selected_reviewers)
+                pr_record.status = 'needs_review'
+                self.db.session.commit()
+                self.logger.info(f"Auto-assigned reviewers for PR #{pr_record.pr_number}: {selected_reviewers}")
+
+        except Exception as e:
+            self.logger.error(f"Error auto-assigning reviewers: {str(e)}")
+
     def check_and_send_reminders(self):
-        """Check for PRs needing review reminders and send them."""
+        """Check for PRs needing review reminders and auto-assign reviewers."""
         self.logger.info("Checking for PRs needing review reminders...")
 
         max_retries = 3
@@ -213,19 +265,29 @@ class GitHubBot:
 
                     # Force a new connection from the pool
                     self.db.session.remove()
-                    
+
+                    # Find PRs needing reviewer assignment (no reviewers after 10 minutes)
+                    prs_needing_assignment = PullRequest.query.filter(
+                        PullRequest.status == 'pending_reviewer_choice',
+                        PullRequest.created_at <= reminder_threshold
+                    ).all()
+
+                    # Auto-assign reviewers for these PRs
+                    for pr in prs_needing_assignment:
+                        self.auto_assign_reviewers(pr)
+
+                    # Original reminder logic
                     prs_needing_reminders = PullRequest.query.filter(
                         PullRequest.status != 'closed',
                         ((PullRequest.last_reminder_sent.is_(None) &
                           (PullRequest.created_at <= reminder_threshold)) |
-                         (PullRequest.last_reminder_sent
-                          <= reminder_threshold))).all()
+                         (PullRequest.last_reminder_sent <= reminder_threshold))).all()
 
                     for pr in prs_needing_reminders:
                         self._send_review_reminder(pr)
-                    
+
                     break  # Success, exit the retry loop
-                    
+
                 except Exception as e:
                     retry_count += 1
                     self.logger.error(f"Attempt {retry_count} failed: {str(e)}")
