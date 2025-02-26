@@ -13,7 +13,6 @@ class PullRequest(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_reminder_sent = db.Column(db.DateTime, nullable=True)
     reminder_count = db.Column(db.Integer, default=0)
-    reminder_in_progress = db.Column(db.Boolean, default=False)  # Added this column
     reviews = db.relationship('Review', backref='pull_request', lazy=True)
 
 class Review(db.Model):
