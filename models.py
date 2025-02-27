@@ -13,7 +13,7 @@ class PullRequest(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_reminder_sent = db.Column(db.DateTime, nullable=True)
     reminder_count = db.Column(db.Integer, default=0)
-    initial_comment_id = db.Column(db.Integer, nullable=True)  # Store the ID of bot's first comment
+    initial_comment_id = db.Column(db.BigInteger, nullable=True)  # Changed to BigInteger to handle large GitHub comment IDs
     reviews = db.relationship('Review', backref='pull_request', lazy=True)
 
 class Review(db.Model):
