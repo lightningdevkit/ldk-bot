@@ -434,7 +434,7 @@ def _ask_for_second_reviewer(self, pr, pr_record, app_url):
             
         except Exception as e:
             self.logger.error(f"Error asking for second reviewer: {str(e)}")
-            
+    
     def assign_second_reviewer(self, repo_name, pr_number):
         """Assign a second reviewer to a PR."""
         try:
