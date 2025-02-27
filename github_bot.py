@@ -6,7 +6,6 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
-
 class GitHubBot:
 
     def __init__(self, token, webhook_secret, db):
@@ -40,6 +39,23 @@ class GitHubBot:
             self._handle_new_pr(pr)
         elif action == 'closed':
             self._handle_closed_pr(pr)
+        elif action == 'ready_for_review':
+            # Handle PR being converted from draft to ready
+            pr_record = PullRequest.query.filter_by(
+                pr_number=pr['number'],
+                repo_name=pr['base']['repo']['full_name']).first()
+
+            if pr_record:
+                pr_record.status = 'pending_reviewer_choice'
+                self.db.session.commit()
+
+                comment = (
+                    "🎉 This PR is now ready for review!\n"
+                    "Please choose at least one reviewer by assigning them on the right bar.\n"
+                    "If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
+                    "Once the first reviewer has submitted a review, a second will be assigned."
+                )
+                self._create_comment(pr['base']['repo']['url'], pr['number'], comment)
 
     def _handle_new_pr(self, pr):
         """Handle new pull request."""
@@ -49,22 +65,30 @@ class GitHubBot:
 
         # Create new PR record
         new_pr = PullRequest(pr_number=pr_number,
-                             repo_name=repo_name,
-                             title=pr['title'],
-                             status='pending_reviewer_choice',
-                             created_at=datetime.utcnow(),
-                             reminder_count=0)
+                           repo_name=repo_name,
+                           title=pr['title'],
+                           status='pending_reviewer_choice',
+                           created_at=datetime.utcnow(),
+                           reminder_count=0)
         self.db.session.add(new_pr)
         self.db.session.commit()
 
-        app_url = "https://" + os.environ.get(
-            'REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
-        [org, repo] = repo_name.split('/')
-        comment = (
-            f"👋 Hi! Please choose at least one reviewer by assigning them on the right bar.\n"
-            "If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
-            "Once the first reviewer has submitted a review, a second will be assigned."
-        )
+        app_url = f"https://{os.environ.get('REPL_SLUG')}.{os.environ.get('REPL_OWNER')}.repl.co"
+
+        if pr.get('draft', False):
+            comment = (
+                "👋 Hi! I see this is a draft PR.\n"
+                "I'll wait to assign reviewers until you mark it as ready for review.\n"
+                "Just convert it out of draft status when you're ready for review!"
+            )
+            new_pr.status = 'draft'
+            self.db.session.commit()
+        else:
+            comment = (
+                "👋 Hi! Please choose at least one reviewer by assigning them on the right bar.\n"
+                "If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
+                "Once the first reviewer has submitted a review, a second will be assigned."
+            )
 
         self._create_comment(repo_url, pr_number, comment)
 
