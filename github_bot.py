@@ -121,31 +121,9 @@ class GitHubBot:
         # Update the initial bot comment
         app_url = "https://" + os.environ.get(
             'REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
-        comments_url = f"{pr['base']['repo']['url']}/issues/{pr['number']}/comments"
-
-        # Get the bot's first comment
-        response = requests.get(comments_url, headers=self.headers)
-        self.logger.info(
-            f"got response {response.status_code} to URL {comments_url}:\n{response.json()}"
-        )
-        if response.status_code == 200:
-            bot_comments = [
-                c for c in response.json()
-                if c['user']['login'] == 'ldk-reviews-bot'
-            ]
-            if bot_comments:
-                first_comment = bot_comments[0]
-                update_url = f"{pr['base']['repo']['url']}/issues/comments/{first_comment['id']}"
-
-                new_comment = (
-                    "✅ This PR has been reviewed!\n\n"
-                    f"To mark this PR as needing another review, visit:\n"
-                    f"{app_url}/mark-needs-review/{pr_record.repo_name}/{pr_record.pr_number}"
-                )
-
-                requests.patch(update_url,
-                               headers=self.headers,
-                               json={'body': new_comment})
+        
+        # After first review, ask if a second reviewer is needed
+        self._ask_for_second_reviewer(pr, pr_record, app_url)
 
         if review['state'] == 'approved':
             self._handle_approved_review(pr)
@@ -261,9 +239,8 @@ class GitHubBot:
             sorted_reviewers = sorted(collaborators,
                                       key=lambda x: reviewer_counts.get(x, 0))
 
-            # Select the two reviewers with least PRs, or all available if less than 2
-            selected_reviewers = sorted_reviewers[:min(2, len(sorted_reviewers)
-                                                       )]
+            # Select only the first reviewer with least PRs
+            selected_reviewers = sorted_reviewers[:1] if sorted_reviewers else []
 
             if selected_reviewers:
                 self.assign_reviewers(pr_record.repo_name, pr_record.pr_number,
@@ -271,7 +248,7 @@ class GitHubBot:
                 pr_record.status = 'needs_review'
                 self.db.session.commit()
                 self.logger.info(
-                    f"Auto-assigned reviewers for PR #{pr_record.pr_number}: {selected_reviewers}"
+                    f"Auto-assigned first reviewer for PR #{pr_record.pr_number}: {selected_reviewers}"
                 )
 
         except Exception as e:
@@ -414,3 +391,98 @@ class GitHubBot:
         except Exception as e:
             self.logger.error(
                 f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")
+def _ask_for_second_reviewer(self, pr, pr_record, app_url):
+        """Ask if a second reviewer is needed after first review."""
+        try:
+            repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
+            
+            # Check if this PR already has more than one reviewer assigned
+            pr_url = f"{repo_url}/pulls/{pr_record.pr_number}"
+            response = requests.get(pr_url, headers=self.headers)
+            if response.status_code != 200:
+                self.logger.error(f"Failed to fetch PR data: {response.text}")
+                return
+                
+            pr_data = response.json()
+            current_reviewers = [user['login'] for user in pr_data.get('requested_reviewers', [])]
+            
+            # If there's already more than one reviewer, don't ask
+            if len(current_reviewers) > 1:
+                return
+                
+            # Create a comment asking if a second reviewer is needed
+            second_reviewer_url = f"{app_url}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
+            message = (
+                "👋 The first review has been submitted!\n\n"
+                "Do you think this PR is ready for a second reviewer? "
+                f"If so, [click here to assign a second reviewer]({second_reviewer_url})."
+            )
+            
+            self._create_comment(repo_url, pr_record.pr_number, message)
+            self.logger.info(f"Asked about second reviewer for PR #{pr_record.pr_number}")
+            
+        except Exception as e:
+            self.logger.error(f"Error asking for second reviewer: {str(e)}")
+def assign_second_reviewer(self, repo_name, pr_number):
+        """Assign a second reviewer to a PR."""
+        try:
+            pr_record = PullRequest.query.filter_by(
+                pr_number=pr_number,
+                repo_name=repo_name).first()
+                
+            if not pr_record:
+                self.logger.error(f"No PR record found for {repo_name}#{pr_number}")
+                return False
+                
+            # Get PR data
+            pr_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}"
+            response = requests.get(pr_url, headers=self.headers)
+            if response.status_code != 200:
+                self.logger.error(f"Failed to fetch PR data: {response.text}")
+                return False
+                
+            pr_data = response.json()
+            pr_author = pr_data['user']['login']
+            current_reviewers = [user['login'] for user in pr_data.get('requested_reviewers', [])]
+            
+            # Get collaborators excluding PR author and current reviewers
+            collaborators = [
+                c for c in self.get_repo_collaborators(repo_name)
+                if c != pr_author and c not in current_reviewers
+            ]
+            
+            if not collaborators:
+                self.logger.error(f"No eligible second reviewers found for PR #{pr_number}")
+                return False
+                
+            # Get reviewer workloads
+            reviewer_counts = self.get_reviewer_pr_counts(repo_name)
+            
+            # Initialize counts for new collaborators
+            for collaborator in collaborators:
+                if collaborator not in reviewer_counts:
+                    reviewer_counts[collaborator] = 0
+                    
+            # Sort collaborators by PR count
+            sorted_reviewers = sorted(collaborators,
+                                    key=lambda x: reviewer_counts.get(x, 0))
+                                    
+            # Select the reviewer with least PRs
+            selected_reviewer = sorted_reviewers[0] if sorted_reviewers else None
+            
+            if selected_reviewer:
+                self.assign_reviewers(repo_name, pr_number, [selected_reviewer])
+                self.logger.info(f"Assigned second reviewer for PR #{pr_number}: {selected_reviewer}")
+                
+                # Post a comment
+                repo_url = f"https://api.github.com/repos/{repo_name}"
+                comment = f"✅ Added second reviewer: @{selected_reviewer}"
+                self._create_comment(repo_url, pr_number, comment)
+                
+                return True
+                
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error assigning second reviewer: {str(e)}")
+            return False
