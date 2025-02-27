@@ -406,7 +406,7 @@ class GitHubBot:
                 f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")
 
     def _ask_for_second_reviewer(self, pr, pr_record, app_url):
-        """Check if this PR already has more than one reviewer assigned."""
+        """Ask if a second reviewer is needed after first review."""
         try:
             repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
 
@@ -423,12 +423,24 @@ class GitHubBot:
                 for user in pr_data.get('requested_reviewers', [])
             ]
 
-            # If there's already more than one reviewer, don't do anything
+            # If there's already more than one reviewer, don't ask
             if len(current_reviewers) > 1:
                 return
 
+            # Create a comment asking if a second reviewer is needed
+            second_reviewer_url = f"{app_url}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
+            message = (
+                "👋 The first review has been submitted!\n\n"
+                "Do you think this PR is ready for a second reviewer? "
+                f"If so, [click here to assign a second reviewer]({second_reviewer_url})."
+            )
+
+            self._create_comment(repo_url, pr_record.pr_number, message)
+            self.logger.info(
+                f"Asked about second reviewer for PR #{pr_record.pr_number}")
+
         except Exception as e:
-            self.logger.error(f"Error checking for second reviewer: {str(e)}")
+            self.logger.error(f"Error asking for second reviewer: {str(e)}")
 
     def assign_second_reviewer(self, repo_name, pr_number):
         """Assign a second reviewer to a PR."""
