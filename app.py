@@ -34,6 +34,10 @@ github_bot = GitHubBot(
     db=db
 )
 
+# Sync existing PRs on startup
+with app.app_context():
+    github_bot.sync_existing_prs()
+
 def reminder_scheduler():
     """Background thread to periodically check and send reminders."""
     with app.app_context():

@@ -18,6 +18,70 @@ class GitHubBot:
             'Accept': 'application/vnd.github.v3+json'
         }
 
+    def sync_existing_prs(self):
+        """Sync existing pull requests, reviews and assigned reviewers on startup."""
+        self.logger.info("Starting sync of existing pull requests...")
+        try:
+            # Get repository name from an environment variable
+            repo_name = os.environ.get("GITHUB_REPOSITORY")
+            if not repo_name:
+                self.logger.error("GITHUB_REPOSITORY environment variable not set")
+                return
+
+            # Get all open pull requests
+            url = f"https://api.github.com/repos/{repo_name}/pulls?state=open"
+            response = requests.get(url, headers=self.headers)
+            if response.status_code != 200:
+                self.logger.error(f"Failed to fetch PRs: {response.text}")
+                return
+
+            prs = response.json()
+            self.logger.info(f"Found {len(prs)} open pull requests")
+
+            for pr in prs:
+                pr_number = pr['number']
+
+                # Check if PR already exists in database
+                existing_pr = PullRequest.query.filter_by(
+                    pr_number=pr_number,
+                    repo_name=repo_name
+                ).first()
+
+                if not existing_pr:
+                    # Create new PR record
+                    new_pr = PullRequest(
+                        pr_number=pr_number,
+                        repo_name=repo_name,
+                        title=pr['title'],
+                        status='needs_review' if not pr.get('draft', False) else 'draft',
+                        created_at=datetime.strptime(pr['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+                    )
+                    self.db.session.add(new_pr)
+                    self.db.session.commit()
+                    self.logger.info(f"Created new PR record for #{pr_number}")
+
+                    # Fetch reviews for this PR
+                    reviews_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
+                    reviews_response = requests.get(reviews_url, headers=self.headers)
+                    if reviews_response.status_code == 200:
+                        reviews = reviews_response.json()
+                        for review in reviews:
+                            new_review = Review(
+                                pr_id=new_pr.id,
+                                reviewer=review['user']['login'],
+                                status=review['state'],
+                                created_at=datetime.strptime(review['submitted_at'], '%Y-%m-%dT%H:%M:%SZ')
+                            )
+                            self.db.session.add(new_review)
+                        self.db.session.commit()
+                        self.logger.info(f"Synced {len(reviews)} reviews for PR #{pr_number}")
+
+            self.logger.info("Pull request sync completed successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error during PR sync: {str(e)}")
+            self.db.session.rollback()
+
     def verify_webhook(self, signature, payload):
         """Verify webhook signature."""
         if not signature:
@@ -476,7 +540,12 @@ class GitHubBot:
                 return
 
             # Create a comment asking if a second reviewer is needed
-            second_reviewer_url = f"{app_url}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
+            # Use f-string for URL construction instead of concatenation
+            repl_slug = os.environ.get('REPL_SLUG', '')
+            repl_owner = os.environ.get('REPL_OWNER', '')
+            app_base_url = f"https://{repl_slug}.{repl_owner}.repl.co" if repl_slug and repl_owner else app_url
+            second_reviewer_url = f"{app_base_url}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
+
             message = (
                 "👋 The first review has been submitted!\n\n"
                 "Do you think this PR is ready for a second reviewer? "
