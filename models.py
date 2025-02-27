@@ -13,6 +13,7 @@ class PullRequest(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_reminder_sent = db.Column(db.DateTime, nullable=True)
     reminder_count = db.Column(db.Integer, default=0)
+    initial_comment_id = db.Column(db.Integer, nullable=True)  # Store the ID of bot's first comment
     reviews = db.relationship('Review', backref='pull_request', lazy=True)
 
 class Review(db.Model):

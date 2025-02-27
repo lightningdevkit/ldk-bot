@@ -6,7 +6,6 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
-
 class GitHubBot:
 
     def __init__(self, token, webhook_secret, db):
@@ -41,23 +40,9 @@ class GitHubBot:
         elif action == 'closed':
             self._handle_closed_pr(pr)
         elif action == 'ready_for_review':
-            # Handle PR being converted from draft to ready
-            pr_record = PullRequest.query.filter_by(
-                pr_number=pr['number'],
-                repo_name=pr['base']['repo']['full_name']).first()
-
-            if pr_record:
-                pr_record.status = 'pending_reviewer_choice'
-                self.db.session.commit()
-
-                comment = (
-                    "🎉 This PR is now ready for review!\n"
-                    "Please choose at least one reviewer by assigning them on the right bar.\n"
-                    "If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
-                    "Once the first reviewer has submitted a review, a second will be assigned."
-                )
-                self._create_comment(pr['base']['repo']['url'], pr['number'],
-                                     comment)
+            self._handle_ready_for_review(pr)
+        elif action == 'converted_to_draft':
+            self._handle_converted_to_draft(pr)
 
     def _handle_new_pr(self, pr):
         """Handle new pull request."""
@@ -67,15 +52,12 @@ class GitHubBot:
 
         # Create new PR record
         new_pr = PullRequest(pr_number=pr_number,
-                             repo_name=repo_name,
-                             title=pr['title'],
-                             status='pending_reviewer_choice',
-                             created_at=datetime.utcnow(),
-                             reminder_count=0)
+                            repo_name=repo_name,
+                            title=pr['title'],
+                            status='pending_reviewer_choice',
+                            created_at=datetime.utcnow(),
+                            reminder_count=0)
         self.db.session.add(new_pr)
-        self.db.session.commit()
-
-        app_url = f"https://{os.environ.get('REPL_SLUG')}.{os.environ.get('REPL_OWNER')}.repl.co"
 
         if pr.get('draft', False):
             comment = (
@@ -84,7 +66,6 @@ class GitHubBot:
                 "Just convert it out of draft status when you're ready for review!"
             )
             new_pr.status = 'draft'
-            self.db.session.commit()
         else:
             comment = (
                 "👋 Hi! Please choose at least one reviewer by assigning them on the right bar.\n"
@@ -92,7 +73,11 @@ class GitHubBot:
                 "Once the first reviewer has submitted a review, a second will be assigned."
             )
 
-        self._create_comment(repo_url, pr_number, comment)
+        # Create initial comment and store its ID
+        comment_id = self._create_comment(repo_url, pr_number, comment)
+        if comment_id:
+            new_pr.initial_comment_id = comment_id
+        self.db.session.commit()
 
     def _handle_closed_pr(self, pr):
         """Handle closed pull request."""
@@ -102,6 +87,46 @@ class GitHubBot:
 
         if pr_record:
             pr_record.status = 'closed'
+            self.db.session.commit()
+
+    def _handle_ready_for_review(self, pr):
+        # Handle PR being converted from draft to ready
+        pr_record = PullRequest.query.filter_by(
+            pr_number=pr['number'],
+            repo_name=pr['base']['repo']['full_name']).first()
+
+        if pr_record:
+            pr_record.status = 'pending_reviewer_choice'
+            self.db.session.commit()
+
+            comment = (
+                "🎉 This PR is now ready for review!\n"
+                "Please choose at least one reviewer by assigning them on the right bar.\n"
+                "If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
+                "Once the first reviewer has submitted a review, a second will be assigned."
+            )
+            self._create_comment(pr['base']['repo']['url'], pr['number'],
+                                 comment)
+
+    def _handle_converted_to_draft(self, pr):
+        """Handle PR being converted to draft."""
+        pr_record = PullRequest.query.filter_by(
+            pr_number=pr['number'],
+            repo_name=pr['base']['repo']['full_name']).first()
+
+        if pr_record and pr_record.initial_comment_id:
+            # Update the initial comment
+            comment = (
+                "👋 Hi! This PR is now in draft status.\n"
+                "I'll wait to assign reviewers until you mark it as ready for review.\n"
+                "Just convert it out of draft status when you're ready for review!"
+            )
+            self._update_comment(pr['base']['repo']['url'],
+                               pr_record.initial_comment_id,
+                               comment)
+
+            # Update PR status
+            pr_record.status = 'draft'
             self.db.session.commit()
 
     def handle_review_event(self, data):
@@ -169,6 +194,20 @@ class GitHubBot:
                                  json={'body': body})
         if response.status_code != 201:
             self.logger.error(f"Failed to create comment: {response.text}")
+            return None
+        return response.json().get('id')
+
+    def _update_comment(self, repo_url, comment_id, body):
+        """Update an existing comment."""
+        comment_url = f"{repo_url}/issues/comments/{comment_id}"
+        response = requests.patch(comment_url,
+                                 headers=self.headers,
+                                 json={'body': body})
+        if response.status_code != 200:
+            self.logger.error(f"Failed to update comment: {response.text}")
+            return False
+        return True
+
 
     def get_stats(self):
         """Get bot statistics."""
@@ -217,6 +256,12 @@ class GitHubBot:
                     f"Failed to fetch PR data: {pr_response.text}")
                 return
             pr_data = pr_response.json()
+
+            # Skip if PR is in draft
+            if pr_data.get('draft', False):
+                self.logger.info(
+                    f"PR #{pr_record.pr_number} is in draft, skipping auto-assignment")
+                return
 
             # Check if PR already has reviewers assigned
             if pr_data.get('requested_reviewers') and len(
