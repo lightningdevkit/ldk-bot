@@ -179,10 +179,6 @@ class GitHubBot:
         if response.status_code != 201:
             raise Exception(f"Failed to assign reviewers: {response.text}")
 
-        comment = f"✅ Assigned reviewers: {', '.join(['@' + r for r in reviewers])}"
-        self._create_comment(f"https://api.github.com/repos/{repo_name}",
-                             pr_number, comment)
-
     def _create_comment(self, repo_url, pr_number, body):
         """Create a comment on a PR."""
         comments_url = f"{repo_url}/issues/{pr_number}/comments"
