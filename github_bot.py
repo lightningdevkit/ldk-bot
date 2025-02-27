@@ -206,7 +206,7 @@ class GitHubBot:
     def auto_assign_reviewers(self, pr_record):
         """Auto-assign reviewers to a PR based on workload."""
         try:
-            # Get PR author
+            # Get PR data including author and existing reviewers
             pr_url = f"https://api.github.com/repos/{pr_record.repo_name}/pulls/{pr_record.pr_number}"
             pr_response = requests.get(pr_url, headers=self.headers)
             if pr_response.status_code != 200:
@@ -214,6 +214,17 @@ class GitHubBot:
                     f"Failed to fetch PR data: {pr_response.text}")
                 return
             pr_data = pr_response.json()
+            
+            # Check if PR already has reviewers assigned
+            if pr_data.get('requested_reviewers') and len(pr_data['requested_reviewers']) > 0:
+                self.logger.info(
+                    f"PR #{pr_record.pr_number} already has reviewers assigned, skipping auto-assignment"
+                )
+                # Update PR status to needs_review since it already has reviewers
+                pr_record.status = 'needs_review'
+                self.db.session.commit()
+                return
+                
             pr_author = pr_data['user']['login']
 
             # Get collaborators excluding PR author
