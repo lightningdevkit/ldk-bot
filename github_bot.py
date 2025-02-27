@@ -6,6 +6,7 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
+
 class GitHubBot:
 
     def __init__(self, token, webhook_secret, db):
@@ -55,7 +56,8 @@ class GitHubBot:
                     "If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
                     "Once the first reviewer has submitted a review, a second will be assigned."
                 )
-                self._create_comment(pr['base']['repo']['url'], pr['number'], comment)
+                self._create_comment(pr['base']['repo']['url'], pr['number'],
+                                     comment)
 
     def _handle_new_pr(self, pr):
         """Handle new pull request."""
@@ -65,11 +67,11 @@ class GitHubBot:
 
         # Create new PR record
         new_pr = PullRequest(pr_number=pr_number,
-                           repo_name=repo_name,
-                           title=pr['title'],
-                           status='pending_reviewer_choice',
-                           created_at=datetime.utcnow(),
-                           reminder_count=0)
+                             repo_name=repo_name,
+                             title=pr['title'],
+                             status='pending_reviewer_choice',
+                             created_at=datetime.utcnow(),
+                             reminder_count=0)
         self.db.session.add(new_pr)
         self.db.session.commit()
 
@@ -418,6 +420,7 @@ class GitHubBot:
                 return
 
             pr_data = response.json()
+            self.logger.info(f"Got {pr_data}")
             current_reviewers = [
                 user['login']
                 for user in pr_data.get('requested_reviewers', [])
