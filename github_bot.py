@@ -444,7 +444,6 @@ class GitHubBot:
                 return
 
             pr_data = response.json()
-            self.logger.info(f"Got {pr_data}")
             reviewers = [
                 user['login']
                 for user in pr_data.get('requested_reviewers', [])
@@ -478,7 +477,6 @@ class GitHubBot:
                 return
 
             pr_data = response.json()
-            self.logger.info(f"Got {pr_data}")
             reviewers = [
                 user['login']
                 for user in pr_data.get('requested_reviewers', [])
@@ -516,6 +514,27 @@ class GitHubBot:
             self.logger.error(
                 f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")
 
+    def _has_bot_comment_about_second_reviewer(self, repo_url, pr_number):
+        """Check if bot has already asked about second reviewer."""
+        try:
+            # Get all comments on the PR
+            comments_url = f"{repo_url}/issues/{pr_number}/comments"
+            response = requests.get(comments_url, headers=self.headers)
+            if response.status_code != 200:
+                self.logger.error(f"Failed to fetch comments: {response.text}")
+                return False
+
+            comments = response.json()
+            # Look for our specific second reviewer question
+            for comment in comments:
+                if "Do you think this PR is ready for a second reviewer?" in comment.get('body', ''):
+                    return True
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error checking for existing bot comments: {str(e)}")
+            return False
+
     def _ask_for_second_reviewer(self, pr, pr_record, app_url):
         """Ask if a second reviewer is needed after first review."""
         try:
@@ -529,7 +548,6 @@ class GitHubBot:
                 return
 
             pr_data = response.json()
-            self.logger.info(f"Got {pr_data}")
             current_reviewers = [
                 user['login']
                 for user in pr_data.get('requested_reviewers', [])
@@ -539,8 +557,12 @@ class GitHubBot:
             if len(current_reviewers) > 1:
                 return
 
+            # Check if we've already asked about a second reviewer
+            if self._has_bot_comment_about_second_reviewer(repo_url, pr_record.pr_number):
+                self.logger.info(f"Already asked about second reviewer for PR #{pr_record.pr_number}")
+                return
+
             # Create a comment asking if a second reviewer is needed
-            # Use f-string for URL construction instead of concatenation
             repl_slug = os.environ.get('REPL_SLUG', '')
             repl_owner = os.environ.get('REPL_OWNER', '')
             app_base_url = f"https://{repl_slug}.{repl_owner}.repl.co" if repl_slug and repl_owner else app_url
