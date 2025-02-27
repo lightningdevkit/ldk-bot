@@ -42,8 +42,8 @@ def reminder_scheduler():
                 github_bot.check_and_send_reminders()
             except Exception as e:
                 logger.error(f"Error in reminder scheduler: {str(e)}")
-            # Sleep for 1 hour before next check
-            time.sleep(3600)
+            # Sleep for 1 minute before next check
+            time.sleep(60)
 
 # Start the reminder scheduler thread
 reminder_thread = threading.Thread(target=reminder_scheduler, daemon=True)
@@ -58,25 +58,6 @@ with app.app_context():
 def index():
     """Render the dashboard page."""
     return render_template('index.html')
-
-@app.route('/choose-reviewers/<org>/<repo>/<int:pr_number>')
-def choose_reviewers(org, repo, pr_number):
-    """Render the reviewer selection page."""
-    repo_name = f"{org}/{repo}"
-    return render_template('choose_reviewers.html', repo_name=repo_name, pr_number=pr_number)
-
-@app.route('/submit-reviewers', methods=['POST'])
-def submit_reviewers():
-    """Handle reviewer submission."""
-    pr_number = request.form.get('pr_number')
-    repo_name = request.form.get('repo_name')
-    reviewers = [r.strip() for r in request.form.get('reviewers', '').split(',') if r.strip()]
-
-    try:
-        github_bot.assign_reviewers(repo_name, pr_number, reviewers)
-        return jsonify({'status': 'success'}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -103,8 +84,6 @@ def webhook():
 def stats():
     """Return bot statistics."""
     return jsonify(github_bot.get_stats())
-
-
 
 @app.route('/check-reminders', methods=['POST'])
 def check_reminders():

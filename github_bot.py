@@ -6,6 +6,7 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
+
 class GitHubBot:
 
     def __init__(self, token, webhook_secret, db):
@@ -60,9 +61,8 @@ class GitHubBot:
             'REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
         [org, repo] = repo_name.split('/')
         comment = (
-            f"👋 Hi! Please choose reviewers for this PR by visiting:\n"
-            f"{app_url}/choose-reviewers/{org}/{repo}/{pr_number}\n\n"
-            "If no reviewers are chosen within 10 minutes, I'll automatically assign them."
+            f"👋 Hi! Please choose reviewers by assigning them on GitHub\n"
+            "If no reviewers are assigned within 10 minutes, I'll automatically assign them."
         )
 
         self._create_comment(repo_url, pr_number, comment)
@@ -89,7 +89,7 @@ class GitHubBot:
                 pr_record = PullRequest.query.filter_by(
                     pr_number=pr['number'],
                     repo_name=pr['base']['repo']['full_name']).first()
-                
+
                 if pr_record:
                     pr_record.status = 'needs_review'
                     self.db.session.commit()
@@ -220,7 +220,8 @@ class GitHubBot:
         for pr in response.json():
             for reviewer in pr.get('requested_reviewers', []):
                 reviewer_login = reviewer['login']
-                reviewer_counts[reviewer_login] = reviewer_counts.get(reviewer_login, 0) + 1
+                reviewer_counts[reviewer_login] = reviewer_counts.get(
+                    reviewer_login, 0) + 1
 
         return reviewer_counts
 
@@ -231,17 +232,22 @@ class GitHubBot:
             pr_url = f"https://api.github.com/repos/{pr_record.repo_name}/pulls/{pr_record.pr_number}"
             pr_response = requests.get(pr_url, headers=self.headers)
             if pr_response.status_code != 200:
-                self.logger.error(f"Failed to fetch PR data: {pr_response.text}")
+                self.logger.error(
+                    f"Failed to fetch PR data: {pr_response.text}")
                 return
             pr_data = pr_response.json()
             pr_author = pr_data['user']['login']
 
             # Get collaborators excluding PR author
-            collaborators = [c for c in self.get_repo_collaborators(pr_record.repo_name) 
-                           if c != pr_author]
+            collaborators = [
+                c for c in self.get_repo_collaborators(pr_record.repo_name)
+                if c != pr_author
+            ]
 
             if not collaborators:
-                self.logger.error(f"No eligible reviewers found for PR #{pr_record.pr_number}")
+                self.logger.error(
+                    f"No eligible reviewers found for PR #{pr_record.pr_number}"
+                )
                 return
 
             reviewer_counts = self.get_reviewer_pr_counts(pr_record.repo_name)
@@ -252,16 +258,21 @@ class GitHubBot:
                     reviewer_counts[collaborator] = 0
 
             # Sort collaborators by PR count
-            sorted_reviewers = sorted(collaborators, key=lambda x: reviewer_counts.get(x, 0))
+            sorted_reviewers = sorted(collaborators,
+                                      key=lambda x: reviewer_counts.get(x, 0))
 
             # Select the two reviewers with least PRs, or all available if less than 2
-            selected_reviewers = sorted_reviewers[:min(2, len(sorted_reviewers))]
+            selected_reviewers = sorted_reviewers[:min(2, len(sorted_reviewers)
+                                                       )]
 
             if selected_reviewers:
-                self.assign_reviewers(pr_record.repo_name, pr_record.pr_number, selected_reviewers)
+                self.assign_reviewers(pr_record.repo_name, pr_record.pr_number,
+                                      selected_reviewers)
                 pr_record.status = 'needs_review'
                 self.db.session.commit()
-                self.logger.info(f"Auto-assigned reviewers for PR #{pr_record.pr_number}: {selected_reviewers}")
+                self.logger.info(
+                    f"Auto-assigned reviewers for PR #{pr_record.pr_number}: {selected_reviewers}"
+                )
 
         except Exception as e:
             self.logger.error(f"Error auto-assigning reviewers: {str(e)}")
@@ -277,7 +288,8 @@ class GitHubBot:
             while retry_count < max_retries:
                 try:
                     current_time = datetime.utcnow()
-                    reminder_threshold = current_time - timedelta(minutes=10)
+                    reviewer_threshold = current_time - timedelta(minutes=10)
+                    reminder_threshold = current_time - timedelta(days=1)
 
                     # Force a new connection from the pool
                     self.db.session.remove()
@@ -285,8 +297,7 @@ class GitHubBot:
                     # Find PRs needing reviewer assignment (no reviewers after 10 minutes)
                     prs_needing_assignment = PullRequest.query.filter(
                         PullRequest.status == 'pending_reviewer_choice',
-                        PullRequest.created_at <= reminder_threshold
-                    ).all()
+                        PullRequest.created_at <= reviewer_threshold).all()
 
                     # Auto-assign reviewers for these PRs
                     for pr in prs_needing_assignment:
@@ -297,7 +308,8 @@ class GitHubBot:
                         PullRequest.status != 'closed',
                         ((PullRequest.last_reminder_sent.is_(None) &
                           (PullRequest.created_at <= reminder_threshold)) |
-                         (PullRequest.last_reminder_sent <= reminder_threshold))).all()
+                         (PullRequest.last_reminder_sent
+                          <= reminder_threshold))).all()
 
                     for pr in prs_needing_reminders:
                         self._send_review_reminder(pr)
@@ -306,7 +318,8 @@ class GitHubBot:
 
                 except Exception as e:
                     retry_count += 1
-                    self.logger.error(f"Attempt {retry_count} failed: {str(e)}")
+                    self.logger.error(
+                        f"Attempt {retry_count} failed: {str(e)}")
                     if retry_count == max_retries:
                         self.logger.error("Max retries reached, giving up")
                         raise
