@@ -9,16 +9,7 @@ run = ["sh", "-c", "gunicorn --bind 0.0.0.0:5000 app:app"]
 build = ["sh", "-c", "pip install -r requirements.txt"]
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Flask Server"
+runButton = "Flask Server"
 
 [[workflows.workflow]]
 name = "Flask Server"
