@@ -2,11 +2,14 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card">
-    <div class="card-body">
-        <h2 class="text-success">Success</h2>
+<div class="container mt-5">
+    <div class="alert alert-success" role="alert">
+        <h4 class="alert-heading">Success!</h4>
         <p>{{ message }}</p>
-        <a href="{{ back_url }}" class="btn btn-primary">Back to Dashboard</a>
+        <hr>
+        <p class="mb-0">
+            <a href="{{ back_url }}" class="btn btn-primary">Back</a>
+        </p>
     </div>
 </div>
 {% endblock %}
