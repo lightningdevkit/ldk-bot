@@ -150,26 +150,6 @@ class GitHubBot:
         # After first review, ask if a second reviewer is needed
         self._ask_for_second_reviewer(pr, pr_record, app_url)
 
-        if review['state'] == 'approved':
-            self._handle_approved_review(pr)
-        elif review['state'] == 'changes_requested':
-            self._handle_changes_requested(pr)
-
-    def _handle_approved_review(self, pr):
-        """Handle approved review."""
-        comment = ("✅ This PR has been approved! "
-                   "Would you like another round of review? "
-                   "Please let me know in a comment.")
-        self._create_comment(pr['base']['repo']['url'], pr['number'], comment)
-
-    def _handle_changes_requested(self, pr):
-        """Handle changes requested review."""
-        comment = (
-            "📝 Changes have been requested. "
-            "Please address the feedback and let me know when you're ready for another review."
-        )
-        self._create_comment(pr['base']['repo']['url'], pr['number'], comment)
-
     def assign_reviewers(self, repo_name, pr_number, reviewers):
         """Assign reviewers to a PR."""
         url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/requested_reviewers"

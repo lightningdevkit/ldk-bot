@@ -95,11 +95,11 @@ def check_reminders():
         logger.error(f"Error checking reminders: {str(e)}")
         return jsonify({'error': str(e)}), 500
         
-@app.route('/assign-second-reviewer/<repo_name>/<int:pr_number>')
-def assign_second_reviewer(repo_name, pr_number):
+@app.route('/assign-second-reviewer/<repo_org>/<repo_name>/<int:pr_number>')
+def assign_second_reviewer(repo_org, repo_name, pr_number):
     """Assign a second reviewer to the PR."""
     try:
-        success = github_bot.assign_second_reviewer(repo_name, pr_number)
+        success = github_bot.assign_second_reviewer(repo_org + "/" + repo_name, pr_number)
         if success:
             return render_template('success.html', 
                                  message="Second reviewer assigned successfully!",
