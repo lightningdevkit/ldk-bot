@@ -107,6 +107,8 @@ class GitHubBot:
             self._handle_ready_for_review(pr)
         elif action == 'converted_to_draft':
             self._handle_converted_to_draft(pr)
+        elif action == 'review_requested':
+            self._handle_review_requested(pr)
 
     def _handle_new_pr(self, pr):
         """Handle new pull request."""
@@ -192,6 +194,39 @@ class GitHubBot:
             # Update PR status
             pr_record.status = 'draft'
             self.db.session.commit()
+
+    def _handle_review_requested(self, pr):
+        """Handle review requested event."""
+        pr_record = PullRequest.query.filter_by(
+            pr_number=pr['number'],
+            repo_name=pr['base']['repo']['full_name']
+        ).first()
+
+        if not pr_record or not pr_record.initial_comment_id:
+            return
+
+        # Get the assigned reviewer's username
+        reviewer = pr.get('requested_reviewer', {}).get('login')
+        if not reviewer:
+            return
+
+        # Update the initial comment
+        comment = (
+            f"👋 Thanks for assigning @{reviewer} as a reviewer!\n"
+            "I'll wait for their review and will help manage the review process.\n"
+            "Once they submit their review, I'll check if a second reviewer would be helpful."
+        )
+
+        self._update_comment(
+            pr['base']['repo']['url'],
+            pr_record.initial_comment_id,
+            comment
+        )
+
+        # Update PR status
+        pr_record.status = 'needs_review'
+        self.db.session.commit()
+
 
     def handle_review_event(self, data):
         """Handle pull request review events."""
