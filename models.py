@@ -1,20 +1,24 @@
 from datetime import datetime
 from db import db
 
+class PRStatus(Enum):
+    PENDING_REVIEWER_CHOICE = 0
+    DRAFT = 1
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    MERGED = "merged"
+
 class PullRequest(db.Model):
     __tablename__ = 'pull_request'
 
-    id = db.Column(db.Integer, primary_key=True)
-    pr_number = db.Column(db.Integer, nullable=False)
+    pr_number = db.Column(db.Integer, primary_key=True)
     repo_name = db.Column(db.String(200), nullable=False)
-    title = db.Column(db.String(500))
-    status = db.Column(db.String(50), default='pending_reviewer_choice')
+    status = db.Column(db.Enum(PRStatus), default=PRStatus.PENDING_REVIEWER_CHOICE)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_reminder_sent = db.Column(db.DateTime, nullable=True)
     reminder_count = db.Column(db.Integer, default=0)
-    initial_comment_id = db.Column(db.BigInteger, nullable=True)  # Changed to BigInteger to handle large GitHub comment IDs
-    reviews = db.relationship('Review', backref='pull_request', lazy=True)
+    initial_comment_id = db.Column(db.BigInteger, nullable=True)
+    reviews = db.relationship('Review', backref='pr_id', lazy=True)
 
 class Review(db.Model):
     __tablename__ = 'review'
@@ -22,20 +26,8 @@ class Review(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pr_id = db.Column(db.Integer, db.ForeignKey('pull_request.id'), nullable=False)
     reviewer = db.Column(db.String(100), nullable=False)
-    status = db.Column(db.String(50), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # New fields for tracking review timing
     requested_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
-    is_rereview = db.Column(db.Boolean, default=False)
-    review_duration = db.Column(db.Integer, nullable=True)  # Duration in minutes
-
-    def complete_review(self):
-        """Mark review as completed and calculate duration"""
-        self.completed_at = datetime.utcnow()
-        if self.requested_at:
-            delta = self.completed_at - self.requested_at
-            self.review_duration = int(delta.total_seconds() / 60)  # Convert to minutes
 
     @property
     def pending_duration(self):
