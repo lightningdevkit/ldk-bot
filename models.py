@@ -1,12 +1,12 @@
 from datetime import datetime
 from db import db
+from enum import Enum
 
 class PRStatus(Enum):
     PENDING_REVIEWER_CHOICE = 0
     DRAFT = 1
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    MERGED = "merged"
+    PENDING_REVIEW = 2
+    CLOSED = 3
 
 class PullRequest(db.Model):
     __tablename__ = 'pull_request'
@@ -24,7 +24,7 @@ class Review(db.Model):
     __tablename__ = 'review'
 
     id = db.Column(db.Integer, primary_key=True)
-    pr_id = db.Column(db.Integer, db.ForeignKey('pull_request.id'), nullable=False)
+    pr_number = db.Column(db.Integer, db.ForeignKey('pull_request.pr_number'), nullable=False)
     reviewer = db.Column(db.String(100), nullable=False)
     requested_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)

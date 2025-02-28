@@ -68,7 +68,7 @@ class GitHubBot:
 						reviews = reviews_response.json()
 						for review in reviews:
 							new_review = Review(
-								pr_id=new_pr.id,
+								pr_number=new_pr.pr_number,
 								reviewer=review['user']['login'],
 								status=review['state'],
 								created_at=datetime.strptime(
@@ -154,7 +154,7 @@ class GitHubBot:
 			repo_name=pr['base']['repo']['full_name']).first()
 
 		if pr_record:
-			pr_record.status = 'closed'
+			pr_record.status = PRStatus.CLOSED
 			self.db.session.commit()
 
 	def _handle_ready_for_review(self, pr):
@@ -183,7 +183,7 @@ class GitHubBot:
 			repo_name=pr['base']['repo']['full_name']).first()
 
 		requests_completed = Review.query.filter(
-			Review.pr_id == pr['number'],
+			Review.pr_number == pr['number'],
 			Review.reviewer == review['user']['login']).all()
 		for request in requests_completed:
 			request
@@ -232,8 +232,8 @@ class GitHubBot:
 		pr_record.status = 'needs_review'
 		self.db.session.commit()
 
-	def _add_pending_review(self, pr_id, reviewer):
-		new_review = Review(pr_id=pr_id,
+	def _add_pending_review(self, pr_number, reviewer):
+		new_review = Review(pr_number=pr_number,
 			reviewer=reviewer)
 		self.db.session.add(new_review)
 		self.db.session.commit()
@@ -261,7 +261,7 @@ class GitHubBot:
 			return
 
 		requests_completed = Review.query.filter(
-			Review.pr_id == pr['number'],
+			Review.pr_number == pr['number'],
 			Review.reviewer == review['user']['login']).all()
 		for request in requests_completed:
 			request.completed_at = datetime.utcnow()
@@ -417,7 +417,7 @@ class GitHubBot:
 				comment_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}"
 				self._update_comment(comment_url,
 										pr_record.initial_comment_id, comment)
-				pr_record.status = 'needs_review'
+				pr_record.status = PRStatus.PENDING_REVIEW
 				self.db.session.commit()
 				self.logger.info(
 					f"Auto-assigned first reviewer for PR #{pr_record.pr_number}: {selected_reviewers}"
@@ -445,7 +445,7 @@ class GitHubBot:
 
 					# Find PRs needing reviewer assignment (no reviewers after 10 minutes)
 					prs_needing_assignment = PullRequest.query.filter(
-						PullRequest.status == 'pending_reviewer_choice',
+						PullRequest.status == PRStatus.PENDING_REVIEWER_CHOICE,
 						PullRequest.created_at <= reviewer_threshold).all()
 
 					# Auto-assign reviewers for these PRs
@@ -454,7 +454,7 @@ class GitHubBot:
 
 					# Original reminder logic
 					prs_needing_reminders = PullRequest.query.filter(
-						PullRequest.status != 'closed',
+						PullRequest.status == PRStatus.PENDING_REVIEW,
 						((PullRequest.last_reminder_sent.is_(None) &
 								(PullRequest.created_at <= reminder_threshold)) |
 							(PullRequest.last_reminder_sent
