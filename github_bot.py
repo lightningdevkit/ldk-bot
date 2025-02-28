@@ -6,6 +6,7 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
+
 class GitHubBot:
 
     def __init__(self, token, webhook_secret, db):
@@ -25,7 +26,8 @@ class GitHubBot:
             # Get repository name from an environment variable
             repo_name = os.environ.get("GITHUB_REPOSITORY")
             if not repo_name:
-                self.logger.error("GITHUB_REPOSITORY environment variable not set")
+                self.logger.error(
+                    "GITHUB_REPOSITORY environment variable not set")
                 return
 
             # Get all open pull requests
@@ -43,9 +45,7 @@ class GitHubBot:
 
                 # Check if PR already exists in database
                 existing_pr = PullRequest.query.filter_by(
-                    pr_number=pr_number,
-                    repo_name=repo_name
-                ).first()
+                    pr_number=pr_number, repo_name=repo_name).first()
 
                 if not existing_pr:
                     # Create new PR record
@@ -53,16 +53,18 @@ class GitHubBot:
                         pr_number=pr_number,
                         repo_name=repo_name,
                         title=pr['title'],
-                        status='needs_review' if not pr.get('draft', False) else 'draft',
-                        created_at=datetime.strptime(pr['created_at'], '%Y-%m-%dT%H:%M:%SZ')
-                    )
+                        status='needs_review'
+                        if not pr.get('draft', False) else 'draft',
+                        created_at=datetime.strptime(pr['created_at'],
+                                                     '%Y-%m-%dT%H:%M:%SZ'))
                     self.db.session.add(new_pr)
                     self.db.session.commit()
                     self.logger.info(f"Created new PR record for #{pr_number}")
 
                     # Fetch reviews for this PR
                     reviews_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
-                    reviews_response = requests.get(reviews_url, headers=self.headers)
+                    reviews_response = requests.get(reviews_url,
+                                                    headers=self.headers)
                     if reviews_response.status_code == 200:
                         reviews = reviews_response.json()
                         for review in reviews:
@@ -70,11 +72,14 @@ class GitHubBot:
                                 pr_id=new_pr.id,
                                 reviewer=review['user']['login'],
                                 status=review['state'],
-                                created_at=datetime.strptime(review['submitted_at'], '%Y-%m-%dT%H:%M:%SZ')
-                            )
+                                created_at=datetime.strptime(
+                                    review['submitted_at'],
+                                    '%Y-%m-%dT%H:%M:%SZ'))
                             self.db.session.add(new_review)
                         self.db.session.commit()
-                        self.logger.info(f"Synced {len(reviews)} reviews for PR #{pr_number}")
+                        self.logger.info(
+                            f"Synced {len(reviews)} reviews for PR #{pr_number}"
+                        )
 
             self.logger.info("Pull request sync completed successfully")
 
@@ -118,11 +123,11 @@ class GitHubBot:
 
         # Create new PR record
         new_pr = PullRequest(pr_number=pr_number,
-                            repo_name=repo_name,
-                            title=pr['title'],
-                            status='pending_reviewer_choice',
-                            created_at=datetime.utcnow(),
-                            reminder_count=0)
+                             repo_name=repo_name,
+                             title=pr['title'],
+                             status='pending_reviewer_choice',
+                             created_at=datetime.utcnow(),
+                             reminder_count=0)
         self.db.session.add(new_pr)
 
         if pr.get('draft', False):
@@ -161,7 +166,7 @@ class GitHubBot:
             pr_number=pr['number'],
             repo_name=pr['base']['repo']['full_name']).first()
 
-        if pr_record:
+        if pr_record and pr_record.initial_comment_id:
             pr_record.status = 'pending_reviewer_choice'
             self.db.session.commit()
 
@@ -171,8 +176,8 @@ class GitHubBot:
                 "If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
                 "Once the first reviewer has submitted a review, a second will be assigned."
             )
-            self._create_comment(pr['base']['repo']['url'], pr['number'],
-                                 comment)
+            self._update_comment(pr['base']['repo']['url'],
+                                 pr_record.initial_comment_id, comment)
 
     def _handle_converted_to_draft(self, pr):
         """Handle PR being converted to draft."""
@@ -188,8 +193,7 @@ class GitHubBot:
                 "Just convert it out of draft status when you're ready for review!"
             )
             self._update_comment(pr['base']['repo']['url'],
-                               pr_record.initial_comment_id,
-                               comment)
+                                 pr_record.initial_comment_id, comment)
 
             # Update PR status
             pr_record.status = 'draft'
@@ -199,8 +203,7 @@ class GitHubBot:
         """Handle review requested event."""
         pr_record = PullRequest.query.filter_by(
             pr_number=pr['number'],
-            repo_name=pr['base']['repo']['full_name']
-        ).first()
+            repo_name=pr['base']['repo']['full_name']).first()
 
         if not pr_record or not pr_record.initial_comment_id:
             return
@@ -217,16 +220,12 @@ class GitHubBot:
             "Once they submit their review, I'll check if a second reviewer would be helpful."
         )
 
-        self._update_comment(
-            pr['base']['repo']['url'],
-            pr_record.initial_comment_id,
-            comment
-        )
+        self._update_comment(pr['base']['repo']['url'],
+                             pr_record.initial_comment_id, comment)
 
         # Update PR status
         pr_record.status = 'needs_review'
         self.db.session.commit()
-
 
     def handle_review_event(self, data):
         """Handle pull request review events."""
@@ -300,13 +299,12 @@ class GitHubBot:
         """Update an existing comment."""
         comment_url = f"{repo_url}/issues/comments/{comment_id}"
         response = requests.patch(comment_url,
-                                 headers=self.headers,
-                                 json={'body': body})
+                                  headers=self.headers,
+                                  json={'body': body})
         if response.status_code != 200:
             self.logger.error(f"Failed to update comment: {response.text}")
             return False
         return True
-
 
     def get_stats(self):
         """Get bot statistics."""
@@ -359,7 +357,8 @@ class GitHubBot:
             # Skip if PR is in draft
             if pr_data.get('draft', False):
                 self.logger.info(
-                    f"PR #{pr_record.pr_number} is in draft, skipping auto-assignment")
+                    f"PR #{pr_record.pr_number} is in draft, skipping auto-assignment"
+                )
                 return
 
             # Check if PR already has reviewers assigned
@@ -562,12 +561,14 @@ class GitHubBot:
             comments = response.json()
             # Look for our specific second reviewer question
             for comment in comments:
-                if "Do you think this PR is ready for a second reviewer?" in comment.get('body', ''):
+                if "Do you think this PR is ready for a second reviewer?" in comment.get(
+                        'body', ''):
                     return True
             return False
 
         except Exception as e:
-            self.logger.error(f"Error checking for existing bot comments: {str(e)}")
+            self.logger.error(
+                f"Error checking for existing bot comments: {str(e)}")
             return False
 
     def _ask_for_second_reviewer(self, pr, pr_record, app_url):
@@ -593,8 +594,11 @@ class GitHubBot:
                 return
 
             # Check if we've already asked about a second reviewer
-            if self._has_bot_comment_about_second_reviewer(repo_url, pr_record.pr_number):
-                self.logger.info(f"Already asked about second reviewer for PR #{pr_record.pr_number}")
+            if self._has_bot_comment_about_second_reviewer(
+                    repo_url, pr_record.pr_number):
+                self.logger.info(
+                    f"Already asked about second reviewer for PR #{pr_record.pr_number}"
+                )
                 return
 
             # Create a comment asking if a second reviewer is needed
