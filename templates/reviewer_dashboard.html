@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reviewer Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .reviewer-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .reviewer-name {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #0366d6;
+        }
+        .reviews-list {
+            margin-top: 20px;
+        }
+        .review-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .review-item:last-child {
+            border-bottom: none;
+        }
+        .pending {
+            color: #d73a49;
+        }
+        .completed {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reviewer Dashboard</h1>
+    
+    {% for reviewer, data in reviewers.items() %}
+    <div class="reviewer-card">
+        <div class="reviewer-name">@{{ reviewer }}</div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value">{{ data.pending_reviews|length }}</div>
+                <div>Pending Reviews</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ data.completed_reviews|length }}</div>
+                <div>Completed Reviews</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ data.avg_duration }}</div>
+                <div>Avg. Review Time (min)</div>
+            </div>
+        </div>
+
+        {% if data.pending_reviews %}
+        <div class="reviews-list">
+            <h3>Pending Reviews</h3>
+            {% for review in data.pending_reviews %}
+            <div class="review-item pending">
+                <strong>PR #{{ review.pull_request.pr_number }}</strong> - 
+                {{ review.pull_request.title }}
+                <br>
+                Waiting for: {{ review.pending_duration }} minutes
+                {% if review.is_rereview %}(Re-review requested){% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if data.completed_reviews %}
+        <div class="reviews-list">
+            <h3>Recent Completed Reviews</h3>
+            {% for review in data.completed_reviews[:5] %}
+            <div class="review-item completed">
+                <strong>PR #{{ review.pull_request.pr_number }}</strong> - 
+                {{ review.pull_request.title }}
+                <br>
+                Completed in: {{ review.review_duration }} minutes
+                {% if review.is_rereview %}(Was a re-review){% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</body>
+</html>

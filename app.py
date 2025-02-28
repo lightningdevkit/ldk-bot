@@ -121,3 +121,34 @@ def assign_second_reviewer(repo_org, repo_name, pr_number):
         return render_template('error.html', 
                              message=f"Error: {str(e)}",
                              back_url=f"/")
+
+@app.route('/reviewer-dashboard')
+def reviewer_dashboard():
+    """Show reviewer statistics and pending reviews."""
+    reviewers = {}
+
+    # Get all reviews
+    reviews = Review.query.order_by(Review.requested_at.desc()).all()
+
+    for review in reviews:
+        reviewer = review.reviewer
+        if reviewer not in reviewers:
+            reviewers[reviewer] = {
+                'pending_reviews': [],
+                'completed_reviews': [],
+                'avg_duration': 0,
+                'total_reviews': 0
+            }
+
+        if review.completed_at:
+            reviewers[reviewer]['completed_reviews'].append(review)
+            if review.review_duration:
+                reviewers[reviewer]['total_reviews'] += 1
+                # Recalculate average duration
+                current_total = reviewers[reviewer]['avg_duration'] * (reviewers[reviewer]['total_reviews'] - 1)
+                new_avg = (current_total + review.review_duration) / reviewers[reviewer]['total_reviews']
+                reviewers[reviewer]['avg_duration'] = round(new_avg, 1)
+        else:
+            reviewers[reviewer]['pending_reviews'].append(review)
+
+    return render_template('reviewer_dashboard.html', reviewers=reviewers)

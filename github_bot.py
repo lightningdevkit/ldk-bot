@@ -6,7 +6,6 @@ import requests
 from models import PullRequest, Review
 from datetime import datetime, timedelta
 
-
 class GitHubBot:
 
     def __init__(self, token, webhook_secret, db):
@@ -203,7 +202,8 @@ class GitHubBot:
         """Handle review requested event."""
         pr_record = PullRequest.query.filter_by(
             pr_number=pr['number'],
-            repo_name=pr['base']['repo']['full_name']).first()
+            repo_name=pr['base']['repo']['full_name']
+        ).first()
 
         if not pr_record or not pr_record.initial_comment_id:
             return
@@ -213,6 +213,21 @@ class GitHubBot:
         if not reviewer:
             return
 
+        # Check if this is a re-review request
+        existing_review = Review.query.filter_by(
+            pr_id=pr_record.id,
+            reviewer=reviewer
+        ).order_by(Review.id.desc()).first()
+
+        new_review = Review(
+            pr_id=pr_record.id,
+            reviewer=reviewer,
+            status='pending',
+            requested_at=datetime.utcnow(),
+            is_rereview=bool(existing_review)
+        )
+        self.db.session.add(new_review)
+
         # Update the initial comment
         comment = (
             f"👋 Thanks for assigning @{reviewer} as a reviewer!\n"
@@ -220,8 +235,11 @@ class GitHubBot:
             "Once they submit their review, I'll check if a second reviewer would be helpful."
         )
 
-        self._update_comment(pr['base']['repo']['url'],
-                             pr_record.initial_comment_id, comment)
+        self._update_comment(
+            pr['base']['repo']['url'],
+            pr_record.initial_comment_id,
+            comment
+        )
 
         # Update PR status
         pr_record.status = 'needs_review'
@@ -238,7 +256,8 @@ class GitHubBot:
             if pr:
                 pr_record = PullRequest.query.filter_by(
                     pr_number=pr['number'],
-                    repo_name=pr['base']['repo']['full_name']).first()
+                    repo_name=pr['base']['repo']['full_name']
+                ).first()
 
                 if pr_record:
                     pr_record.status = 'needs_review'
@@ -252,16 +271,36 @@ class GitHubBot:
 
         pr_record = PullRequest.query.filter_by(
             pr_number=pr['number'],
-            repo_name=pr['base']['repo']['full_name']).first()
+            repo_name=pr['base']['repo']['full_name']
+        ).first()
 
         if not pr_record:
             self.logger.error(f"No PR Record for: {pr['number']}")
             return
 
-        new_review = Review(pr_id=pr_record.id,
-                            reviewer=review['user']['login'],
-                            status=review['state'])
-        self.db.session.add(new_review)
+        # Find the pending review for this reviewer
+        current_review = Review.query.filter_by(
+            pr_id=pr_record.id,
+            reviewer=review['user']['login'],
+            completed_at=None
+        ).order_by(Review.requested_at.desc()).first()
+
+        if current_review:
+            # Update existing review
+            current_review.status = review['state']
+            current_review.complete_review()  # This will set completed_at and calculate duration
+        else:
+            # Create new review record if none exists
+            current_review = Review(
+                pr_id=pr_record.id,
+                reviewer=review['user']['login'],
+                status=review['state'],
+                requested_at=datetime.utcnow(),
+                completed_at=datetime.utcnow()
+            )
+            current_review.complete_review()
+            self.db.session.add(current_review)
+
         self.db.session.commit()
 
         # Update PR status to reviewed
@@ -269,8 +308,7 @@ class GitHubBot:
         self.db.session.commit()
 
         # Update the initial bot comment
-        app_url = "https://" + os.environ.get(
-            'REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
+        app_url = "https://" + os.environ.get('REPL_SLUG', '') + "." + os.environ.get('REPL_OWNER', '') + ".repl.co"
 
         # After first review, ask if a second reviewer is needed
         self._ask_for_second_reviewer(pr, pr_record, app_url)
