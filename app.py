@@ -27,7 +27,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 db.init_app(app)
 
-print("init'd db...")
+logger.info("init'd db...")
 
 # Initialize GitHub bot
 github_bot = GitHubBot(
@@ -35,7 +35,7 @@ github_bot = GitHubBot(
     webhook_secret=os.environ.get("WEBHOOK_SECRET"),
     db=db
 )
-print("init'd github bot...")
+logger.info("init'd github bot...")
 
 def reminder_scheduler():
     """Background thread to periodically check and send reminders."""
@@ -52,7 +52,7 @@ def reminder_scheduler():
 reminder_thread = threading.Thread(target=reminder_scheduler, daemon=True)
 reminder_thread.start()
 
-print("creating models...")
+logger.info("creating models...")
 
 with app.app_context():
     # Import models here to avoid circular imports
@@ -60,7 +60,7 @@ with app.app_context():
     db.create_all()
 
 
-print("routing...")
+logger.info("routing...")
 
 @app.route('/')
 def index():
