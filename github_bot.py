@@ -234,8 +234,7 @@ class GitHubBot:
 
 	def _add_pending_review(self, pr_id, reviewer):
 		new_review = Review(pr_id=pr_id,
-			reviewer=reviewer,
-			status="requested")
+			reviewer=reviewer)
 		self.db.session.add(new_review)
 		self.db.session.commit()
 
