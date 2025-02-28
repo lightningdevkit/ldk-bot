@@ -111,6 +111,7 @@ class GitHubBot:
 			)
 
 		self.db.session.add(new_pr)
+		self.db.session.commit() # commit here to ensure we dont comment on dup entries
 
 		# Create initial comment and store its ID
 		comment_id = self._create_comment(repo_url, pr_number, comment)
@@ -181,9 +182,7 @@ class GitHubBot:
 		repo_name = pr['base']['repo']['full_name']
 		pr_number = pr['number']
 
-		pr_record = PullRequest.query.filter_by(
-			pr_number=pr_number,
-			repo_name=repo_name).first()
+		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
 
 		assert pr_record is not None
 		assert pr_record.initial_comment_id is not None
@@ -202,13 +201,16 @@ class GitHubBot:
 		self._update_comment(repo_url, pr_record, comment)
 
 		# Update PR status
-		pr_record.status = PRStatus.PENDING_REVIEW
-		self.db.session.commit()
+		self._add_pending_review(pr_number, reviewer)
 
 	def _add_pending_review(self, pr_number, reviewer):
-		new_review = Review(pr_number=pr_number,
-			reviewer=reviewer)
+		new_review = Review(pr_number=pr_number, reviewer=reviewer)
 		self.db.session.add(new_review)
+
+		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
+		assert pr_record is not None
+		pr_record.status = PRStatus.PENDING_REVIEW
+
 		self.db.session.commit()
 
 	def handle_review_event(self, data):
