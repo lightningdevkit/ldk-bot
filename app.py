@@ -1,12 +1,10 @@
 import os
 import logging
-from flask import Flask, request, render_template, jsonify
-from dotenv import load_dotenv
-from db import db
-from github_bot import GitHubBot
-from datetime import datetime
 import threading
 import time
+from datetime import datetime
+from flask import Flask, request, render_template, jsonify
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -19,17 +17,25 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
 
-# Configure database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
-db.init_app(app)
+# Initialize database
+from db import init_db
+init_db(app)
 
 logger.info("init'd db...")
 
+with app.app_context():
+    # Import models here to avoid circular imports
+    from models import PullRequest, Review, PRStatus  # noqa: F401
+    try:
+        from db import db
+        db.create_all()
+        logger.info("Successfully created database tables")
+    except Exception as e:
+        logger.error(f"Error creating database tables: {str(e)}")
+        raise
+
 # Initialize GitHub bot
+from github_bot import GitHubBot
 github_bot = GitHubBot(
     token=os.environ.get("GITHUB_TOKEN"),
     webhook_secret=os.environ.get("WEBHOOK_SECRET"),
@@ -52,15 +58,6 @@ def reminder_scheduler():
 reminder_thread = threading.Thread(target=reminder_scheduler, daemon=True)
 reminder_thread.start()
 
-logger.info("creating models...")
-
-with app.app_context():
-    # Import models here to avoid circular imports
-    from models import PullRequest, Review  # noqa: F401
-    db.create_all()
-
-
-logger.info("routing...")
 
 @app.route('/')
 def index():
@@ -111,17 +108,17 @@ def assign_second_reviewer(repo_org, repo_name, pr_number):
         success = github_bot.assign_second_reviewer(repo_org + "/" + repo_name, pr_number)
         if success:
             return render_template('success.html', 
-                                 message="Second reviewer assigned successfully!",
-                                 back_url=f"/")
+                                message="Second reviewer assigned successfully!",
+                                back_url=f"/")
         else:
             return render_template('error.html', 
-                                 message="Failed to assign second reviewer.",
-                                 back_url=f"/")
+                                message="Failed to assign second reviewer.",
+                                back_url=f"/")
     except Exception as e:
         logger.error(f"Error assigning second reviewer: {str(e)}")
         return render_template('error.html', 
-                             message=f"Error: {str(e)}",
-                             back_url=f"/")
+                            message=f"Error: {str(e)}",
+                            back_url=f"/")
 
 @app.route('/reviewer-dashboard')
 def reviewer_dashboard():
@@ -143,12 +140,13 @@ def reviewer_dashboard():
 
         if review.completed_at:
             reviewers[reviewer]['completed_reviews'].append(review)
-            if review.review_duration:
-                reviewers[reviewer]['total_reviews'] += 1
-                # Recalculate average duration
-                current_total = reviewers[reviewer]['avg_duration'] * (reviewers[reviewer]['total_reviews'] - 1)
-                new_avg = (current_total + review.review_duration) / reviewers[reviewer]['total_reviews']
-                reviewers[reviewer]['avg_duration'] = round(new_avg, 1)
+            delta = review.completed_at - review.requested_at
+            review_duration = int(delta.total_seconds() / 60)  # Duration in minutes
+            reviewers[reviewer]['total_reviews'] += 1
+            # Recalculate average duration
+            current_total = reviewers[reviewer]['avg_duration'] * (reviewers[reviewer]['total_reviews'] - 1)
+            new_avg = (current_total + review_duration) / reviewers[reviewer]['total_reviews']
+            reviewers[reviewer]['avg_duration'] = round(new_avg, 1)
         else:
             reviewers[reviewer]['pending_reviews'].append(review)
 

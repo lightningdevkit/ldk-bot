@@ -1,6 +1,6 @@
 from datetime import datetime
-from db import db
 from enum import Enum
+from db import db
 
 class PRStatus(Enum):
     PENDING_REVIEWER_CHOICE = 0

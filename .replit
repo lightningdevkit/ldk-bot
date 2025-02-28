@@ -9,7 +9,7 @@ run = ["sh", "-c", "gunicorn --bind 0.0.0.0:5000 app:app"]
 build = ["sh", "-c", "pip install -r requirements.txt"]
 
 [workflows]
-runButton = "Flask Server"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Flask Server"
@@ -25,6 +25,31 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "python main.py"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Flask Server"
+mode = "parallel"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Flask Server"
 
 [[ports]]
 localPort = 5000
