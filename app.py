@@ -103,7 +103,7 @@ def check_reminders():
     except Exception as e:
         logger.error(f"Error checking reminders: {str(e)}")
         return jsonify({'error': str(e)}), 500
-        
+
 @app.route('/assign-second-reviewer/<repo_org>/<repo_name>/<int:pr_number>')
 def assign_second_reviewer(repo_org, repo_name, pr_number):
     """Assign a second reviewer to the PR."""

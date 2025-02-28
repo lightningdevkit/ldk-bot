@@ -53,7 +53,7 @@ class GitHubBot:
 						pr_number=pr_number,
 						repo_name=repo_name,
 						title=pr['title'],
-						status=if pr.get('draft') PRStatus.DRAFT else PRStatus.PENDING_REVIEWER_CHOICE,
+						status=PRStatus.DRAFT if pr.get('draft') else PRStatus.PENDING_REVIEWER_CHOICE,
 						created_at=datetime.strptime(pr['created_at'],
 														'%Y-%m-%dT%H:%M:%SZ'))
 					self.db.session.add(new_pr)
