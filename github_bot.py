@@ -181,12 +181,6 @@ class GitHubBot:
             pr_number=pr['number'],
             repo_name=pr['base']['repo']['full_name']).first()
 
-        #This section was causing an error because 'review' was not defined.  It's been removed as it wasn't doing anything useful.
-        #requests_completed = Review.query.filter(
-        #    Review.pr_number == pr['number'],
-        #    Review.reviewer == review['user']['login']).all()
-        #for request in requests_completed:
-        #    request
 
         if pr_record and pr_record.initial_comment_id:
             # Update the initial comment
@@ -281,8 +275,7 @@ class GitHubBot:
         self.db.session.commit()
 
         # Update the initial bot comment
-        app_url = "https://" + os.environ.get(
-            'REPL_SLUG') + "." + os.environ.get('REPL_OWNER') + ".repl.co"
+        app_url = f"https://{os.environ.get('REPL_SLUG', '')}.{os.environ.get('REPL_OWNER', '')}.repl.co"
 
         # After first review, ask if a second reviewer is needed
         self._ask_for_second_reviewer(pr, pr_record, app_url)
@@ -628,7 +621,7 @@ class GitHubBot:
             # Create a comment asking if a second reviewer is needed
             repl_slug = os.environ.get('REPL_SLUG', '')
             repl_owner = os.environ.get('REPL_OWNER', '')
-            app_base_url = f"https://{repl_slug}.{repl_owner}.repl.co" if repl_slug and repl_owner else app_url
+            app_base_url = f"{app_url}" if not (repl_slug and repl_owner) else f"https://{repl_slug}.{repl_owner}.repl.co"
             second_reviewer_url = f"{app_base_url}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
 
             message = (

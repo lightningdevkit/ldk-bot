@@ -6,7 +6,9 @@ class PRStatus(Enum):
     PENDING_REVIEWER_CHOICE = 0
     DRAFT = 1
     PENDING_REVIEW = 2
-    CLOSED = 3
+    NEEDS_REVIEW = 3
+    REVIEWED = 4
+    CLOSED = 5
 
 class PullRequest(db.Model):
     __tablename__ = 'pull_request'
