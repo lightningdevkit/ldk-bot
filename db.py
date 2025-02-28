@@ -1,13 +1,7 @@
 import os
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
 
-
-class Base(DeclarativeBase):
-    pass
-
-
-db = SQLAlchemy(model_class=Base)
+db = SQLAlchemy()
 
 def init_db(app):
     """Initialize the database with the Flask app"""

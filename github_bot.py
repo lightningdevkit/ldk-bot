@@ -21,69 +21,46 @@ class GitHubBot:
 	def sync_existing_prs(self):
 		"""Sync existing pull requests, reviews and assigned reviewers on startup."""
 		self.logger.info("Starting sync of existing pull requests...")
-		try:
-			# Get repository name from an environment variable
-			repo_name = os.environ.get("GITHUB_REPOSITORY")
-			if not repo_name:
-				self.logger.error(
-					"GITHUB_REPOSITORY environment variable not set")
-				return
+		# Get repository name from an environment variable
+		repo_name = os.environ.get("GITHUB_REPOSITORY")
 
-			# Get all open pull requests
-			url = f"https://api.github.com/repos/{repo_name}/pulls?state=open"
-			response = requests.get(url, headers=self.headers)
-			if response.status_code != 200:
-				self.logger.error(f"Failed to fetch PRs: {response.text}")
-				return
+		# Get all open pull requests
+		url = f"https://api.github.com/repos/{repo_name}/pulls?state=open"
+		response = requests.get(url, headers=self.headers)
+		response.raise_for_status()
 
-			prs = response.json()
-			self.logger.info(f"Found {len(prs)} open pull requests")
+		prs = response.json()
+		self.logger.info(f"Found {len(prs)} open pull requests")
 
-			for pr in prs:
-				pr_number = pr['number']
+		for pr in prs:
+			pr_number = pr['number']
 
-				# Check if PR already exists in database
-				existing_pr = PullRequest.query.filter_by(
-					pr_number=pr_number, repo_name=repo_name).first()
+			# Check if PR already exists in database
+			existing_pr = PullRequest.query.filter_by(
+				pr_number=pr_number, repo_name=repo_name).first()
 
-				if not existing_pr:
-					# Create new PR record
-					new_pr = PullRequest(
-						pr_number=pr_number,
-						repo_name=repo_name,
-						title=pr['title'],
-						status=PRStatus.DRAFT if pr.get('draft') else PRStatus.PENDING_REVIEWER_CHOICE,
-						created_at=datetime.strptime(pr['created_at'],
-														'%Y-%m-%dT%H:%M:%SZ'))
-					self.db.session.add(new_pr)
-					self.db.session.commit()
-					self.logger.info(f"Created new PR record for #{pr_number}")
+			if not existing_pr:
+				# Create new PR record
+				new_pr = PullRequest(
+					pr_number=pr_number,
+					repo_name=repo_name,
+					status=PRStatus.DRAFT if pr.get('draft') else PRStatus.PENDING_REVIEWER_CHOICE,
+					created_at=datetime.strptime(pr['created_at'], '%Y-%m-%dT%H:%M:%SZ'))
+				self.db.session.add(new_pr)
+				self.logger.info(f"Created new PR record for #{pr_number}")
 
-					# Fetch reviews for this PR
-					reviews_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr_number}/reviews"
-					reviews_response = requests.get(reviews_url,
-													headers=self.headers)
-					if reviews_response.status_code == 200:
-						reviews = reviews_response.json()
-						for review in reviews:
-							new_review = Review(
-								pr_number=new_pr.pr_number,
-								reviewer=review['user']['login'],
-								status=review['state'],
-								created_at=datetime.strptime(
-									review['submitted_at'],
-									'%Y-%m-%dT%H:%M:%SZ'))
-							self.db.session.add(new_review)
-						self.db.session.commit()
-						self.logger.info(
-							f"Synced {len(reviews)} reviews for PR #{pr_number}"
-						)
+			for reviewer in pr['requested_reviewers']:
+				existing_review = Review.query.filter_by(
+					pr_number=pr_number, reviewer=reviewer['login']).first()
+				print(existing_review)
+				if not existing_review:
+					new_review = Review(
+						pr_number=new_pr.pr_number,
+						reviewer=reviewer['login'])
+					self.db.session.add(new_review)
 
-			self.logger.info("Pull request sync completed successfully")
-
-		except Exception as e:
-			self.logger.error(f"Error during PR sync: {str(e)}")
-			self.db.session.rollback()
+		self.db.session.commit()
+		self.logger.info(f"Synced {len(prs)} PRs")
 
 	def verify_webhook(self, signature, payload):
 		"""Verify webhook signature."""
@@ -172,8 +149,7 @@ class GitHubBot:
 				"If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
 				"Once the first reviewer has submitted a review, a second will be assigned."
 			)
-			self._update_comment(pr['base']['repo']['url'],
-									pr_record.initial_comment_id, comment)
+			self._update_comment(pr['base']['repo']['url'], pr_record, comment)
 
 	def _handle_converted_to_draft(self, pr):
 		"""Handle PR being converted to draft."""
@@ -195,8 +171,7 @@ class GitHubBot:
 					"I'll wait to assign reviewers until you mark it as ready for review.\n"
 					"Just convert it out of draft status when you're ready for review!"
 				)
-				self._update_comment(pr['base']['repo']['url'],
-										pr_record.initial_comment_id, comment)
+				self._update_comment(pr['base']['repo']['url'], pr_record, comment)
 
 			# Update PR status
 			pr_record.status = PRStatus.DRAFT
@@ -236,7 +211,7 @@ class GitHubBot:
 		)
 
 		repo_url = pr['base']['repo']['url']
-		self._update_comment(repo_url, pr_record.initial_comment_id, comment)
+		self._update_comment(repo_url, pr_record, comment)
 
 		# Update PR status
 		pr_record.status = PRStatus.PENDING_REVIEW
@@ -308,16 +283,15 @@ class GitHubBot:
 			return None
 		return response.json().get('id')
 
-	def _update_comment(self, repo_url, comment_id, body):
+	def _update_comment(self, repo_url, pr_record, body):
 		"""Update an existing comment."""
-		comment_url = f"{repo_url}/issues/comments/{comment_id}"
-		response = requests.patch(comment_url,
-										headers=self.headers,
-										json={'body': body})
-		if response.status_code != 200:
-			self.logger.error(f"Failed to update comment: {response.text}")
-			return False
-		return True
+		if pr_record.initial_comment_id:
+			comment_url = f"{repo_url}/issues/comments/{pr_record.initial_comment_id}"
+			response = requests.patch(comment_url, headers=self.headers, json={'body': body})
+			if response.status_code != 200:
+				self.logger.error(f"Failed to update comment: {response.text}")
+		else:
+			self.create_comment(repo_url, pr_record.pr_number, body)
 
 	def get_stats(self):
 		"""Get bot statistics."""
@@ -424,8 +398,7 @@ class GitHubBot:
 				)
 
 				comment_url = f"https://api.github.com/repos/{pr_record.repo_name}/pulls/{pr_record.pr_number}"
-				self._update_comment(comment_url,
-										pr_record.initial_comment_id, comment)
+				self._update_comment(comment_url, pr_record, comment)
 				pr_record.status = PRStatus.PENDING_REVIEW
 				self.db.session.commit()
 				self.logger.info(
