@@ -6,8 +6,9 @@ import requests
 from models import PullRequest, Review, PRStatus
 from datetime import datetime, timedelta
 
-class GitHubBot:
+APP_BASE_URL="https://ldk-reviews-bot.bluematt.me/"
 
+class GitHubBot:
 	def __init__(self, token, webhook_secret, db):
 		self.token = token
 		self.webhook_secret = webhook_secret.encode()
@@ -256,10 +257,9 @@ class GitHubBot:
 		self.db.session.commit()
 
 		# Update the initial bot comment
-		app_url = f"https://{os.environ.get('REPL_SLUG', '')}.{os.environ.get('REPL_OWNER', '')}.repl.co"
 
 		# After first review, ask if a second reviewer is needed
-		self._ask_for_second_reviewer(pr, pr_record, app_url)
+		self._ask_for_second_reviewer(pr, pr_record)
 
 	def assign_reviewers(self, repo_name, pr_number, reviewers):
 		"""Assign reviewers to a PR."""
@@ -567,7 +567,7 @@ class GitHubBot:
 				f"Error checking for existing bot comments: {str(e)}")
 			return False
 
-	def _ask_for_second_reviewer(self, pr, pr_record, app_url):
+	def _ask_for_second_reviewer(self, pr, pr_record):
 		"""Ask if a second reviewer is needed after first review."""
 		try:
 			repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
@@ -598,10 +598,7 @@ class GitHubBot:
 				return
 
 			# Create a comment asking if a second reviewer is needed
-			repl_slug = os.environ.get('REPL_SLUG', '')
-			repl_owner = os.environ.get('REPL_OWNER', '')
-			app_base_url = f"{app_url}" if not (repl_slug and repl_owner) else f"https://{repl_slug}.{repl_owner}.repl.co"
-			second_reviewer_url = f"{app_base_url}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
+			second_reviewer_url = f"{APP_BASE_URL}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
 
 			message = (
 				"👋 The first review has been submitted!\n\n"
