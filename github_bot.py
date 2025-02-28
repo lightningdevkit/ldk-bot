@@ -26,39 +26,33 @@ class GitHubBot:
 		repo_name = os.environ.get("GITHUB_REPOSITORY")
 
 		# Get all open pull requests
-		url = f"https://api.github.com/repos/{repo_name}/pulls?state=open"
+		url = f"https://api.github.com/repos/{repo_name}/pulls?state=all"
 		response = requests.get(url, headers=self.headers)
 		response.raise_for_status()
 
 		prs = response.json()
-		self.logger.info(f"Found {len(prs)} open pull requests")
+		self.logger.info(f"Found {len(prs)} pull requests")
 
 		for pr in prs:
-			pr_number = pr['number']
+			if pr['state'] == "open":
+				# Check if PR already exists in database
+				existing_pr = PullRequest.query.filter_by(
+					pr_number=pr['number'], repo_name=repo_name).first()
 
-			# Check if PR already exists in database
-			existing_pr = PullRequest.query.filter_by(
-				pr_number=pr_number, repo_name=repo_name).first()
+				if not existing_pr:
+					self._handle_new_pr(pr)
+			else:
+				# Check if PR already exists in database
+				existing_pr = PullRequest.query.filter_by(
+					pr_number=pr['number'], repo_name=repo_name).first()
 
-			if not existing_pr:
-				# Create new PR record
-				new_pr = PullRequest(
-					pr_number=pr_number,
-					repo_name=repo_name,
-					status=PRStatus.DRAFT if pr.get('draft') else PRStatus.PENDING_REVIEWER_CHOICE,
-					created_at=datetime.strptime(pr['created_at'], '%Y-%m-%dT%H:%M:%SZ'))
-				self.db.session.add(new_pr)
-				self.logger.info(f"Created new PR record for #{pr_number}")
-
-			for reviewer in pr['requested_reviewers']:
-				existing_review = Review.query.filter_by(
-					pr_number=pr_number, reviewer=reviewer['login']).first()
-				print(existing_review)
-				if not existing_review:
-					new_review = Review(
-						pr_number=new_pr.pr_number,
-						reviewer=reviewer['login'])
-					self.db.session.add(new_review)
+				if existing_pr:
+					existing_pr.status = PRStatus.CLOSED
+					reviews = Review.query.filter_by(pr_number=pr['number']).all()
+					for review in reviews:
+						if review.completed_at is None:
+							review.completed_at = datetime.utcnow()
+					self.db.session.commit()
 
 		self.db.session.commit()
 		self.logger.info(f"Synced {len(prs)} PRs")
@@ -89,7 +83,7 @@ class GitHubBot:
 		elif action == 'converted_to_draft':
 			self._handle_converted_to_draft(pr)
 		elif action == 'review_requested':
-			self._handle_review_requested(data)
+			self._handle_review_requested(data['pull_request'], data['requested_reviewer'])
 
 	def _handle_new_pr(self, pr):
 		"""Handle new pull request."""
@@ -123,6 +117,9 @@ class GitHubBot:
 		if comment_id:
 			new_pr.initial_comment_id = comment_id
 		self.db.session.commit()
+
+		for reviewer in pr['requested_reviewers']:
+			self._handle_review_requested(pr, reviewer)
 
 	def _handle_closed_pr(self, pr):
 		"""Handle closed pull request."""
@@ -178,14 +175,8 @@ class GitHubBot:
 			pr_record.status = PRStatus.DRAFT
 			self.db.session.commit()
 
-	def _handle_review_requested(self, data):
+	def _handle_review_requested(self, pr, requested_reviewer):
 		"""Handle review requested event."""
-		pr = data.get('pull_request')
-		requested_reviewer = data.get('requested_reviewer')
-
-		if not pr or not pr.get('base'):
-			self.logger.error(f"Invalid PR data received: {data}")
-			return
 
 		repo_name = pr['base']['repo']['full_name']
 		pr_number = pr['number']
@@ -194,15 +185,11 @@ class GitHubBot:
 			pr_number=pr_number,
 			repo_name=repo_name).first()
 
-		if not pr_record or not pr_record.initial_comment_id:
-			self.logger.error(f"No PR DB entry for PR #{pr_number}: {str(pr_record)}")
-			return
+		assert pr_record is not None
+		assert pr_record.initial_comment_id is not None
 
 		# Get the assigned reviewer's username
-		reviewer = requested_reviewer.get('login') if requested_reviewer else None
-		if not reviewer:
-			self.logger.error("No reviewer provided in GH webhook")
-			return
+		reviewer = requested_reviewer['login']
 
 		# Update the initial comment
 		comment = (
