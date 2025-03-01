@@ -232,6 +232,7 @@ class GitHubBot:
 		pr = data.get('pull_request')
 		review = data.get('review')
 		repo_name = pr['base']['repo']['full_name']
+		reviewer = review['user']['login']
 
 		if not review or not pr:
 			self.logger.error("No review/PR in req!")
@@ -248,9 +249,22 @@ class GitHubBot:
 		requests_completed = Review.query.filter(
 			Review.repo_name == repo_name,
 			Review.pr_number == pr['number'],
-			Review.reviewer == review['user']['login']).all()
+			Review.reviewer == reviewer).all()
+
 		for request in requests_completed:
 			request.completed_at = datetime.utcnow()
+
+		if len(requests_completed) == 0:
+			pr_author = pr['user']['login']
+			collaborators = [
+				c for c in self.get_repo_collaborators(repo_name)
+				if c != pr_author
+			]
+			if review['user']['login'] in collaborators:
+				new_review = Review(repo_name=repo_name, pr_number=pr['number'], reviewer=reviewer, completed_at = datetime.utcnow())
+				self.db.session.add(new_review)
+				self.db.session.commit()
+				return
 
 		# Update PR status to reviewed
 		pr_record.status = PRStatus.REVIEWED
