@@ -206,12 +206,18 @@ class GitHubBot:
 		self._add_pending_review(repo_name, pr_number, reviewer)
 
 	def _add_pending_review(self, repo_name, pr_number, reviewer):
-		new_review = Review(repo_name=repo_name, pr_number=pr_number, reviewer=reviewer)
-		self.db.session.add(new_review)
-
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
 		assert pr_record is not None
 		pr_record.status = PRStatus.PENDING_REVIEW
+
+		pending_review = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name, reviewer=reviewer, completed_at=None).first()
+		if pending_review:
+			# Probably we already assigned on the bot and then got the callback for the assignment
+			self.db.session.commit()
+			return
+
+		new_review = Review(repo_name=repo_name, pr_number=pr_number, reviewer=reviewer)
+		self.db.session.add(new_review)
 
 		self.db.session.commit()
 
