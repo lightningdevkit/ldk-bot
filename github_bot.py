@@ -413,50 +413,33 @@ class GitHubBot:
 		"""Check for PRs needing review reminders and auto-assign reviewers."""
 		self.logger.info("Checking for PRs needing review reminders...")
 
-		max_retries = 3
-		retry_count = 0
-
 		try:
-			while retry_count < max_retries:
-				try:
-					current_time = datetime.utcnow()
-					reviewer_threshold = current_time - timedelta(minutes=10)
-					reminder_threshold = current_time - timedelta(days=1)
+			current_time = datetime.utcnow()
+			reviewer_threshold = current_time - timedelta(minutes=10)
+			reminder_threshold = current_time - timedelta(days=1)
 
-					# Force a new connection from the pool
-					self.db.session.remove()
+			# Force a new connection from the pool
+			self.db.session.remove()
 
-					# Find PRs needing reviewer assignment (no reviewers after 10 minutes)
-					prs_needing_assignment = PullRequest.query.filter(
-						PullRequest.status == PRStatus.PENDING_REVIEWER_CHOICE,
-						PullRequest.created_at <= reviewer_threshold).all()
+			# Find PRs needing reviewer assignment (no reviewers after 10 minutes)
+			prs_needing_assignment = PullRequest.query.filter(
+				PullRequest.status == PRStatus.PENDING_REVIEWER_CHOICE,
+				PullRequest.created_at <= reviewer_threshold).all()
 
-					# Auto-assign reviewers for these PRs
-					for pr in prs_needing_assignment:
-						self.auto_assign_reviewers(pr)
+			# Auto-assign reviewers for these PRs
+			for pr in prs_needing_assignment:
+				self.auto_assign_reviewers(pr)
 
-					# Original reminder logic
-					prs_needing_reminders = PullRequest.query.filter(
-						PullRequest.status == PRStatus.PENDING_REVIEW,
-						((PullRequest.last_reminder_sent.is_(None) &
-								(PullRequest.created_at <= reminder_threshold)) |
-							(PullRequest.last_reminder_sent
-								<= reminder_threshold))).all()
+			# Original reminder logic
+			prs_needing_reminders = PullRequest.query.filter(
+				PullRequest.status == PRStatus.PENDING_REVIEW,
+				((PullRequest.last_reminder_sent.is_(None) &
+						(PullRequest.created_at <= reminder_threshold)) |
+					(PullRequest.last_reminder_sent
+						<= reminder_threshold))).all()
 
-					for pr in prs_needing_reminders:
-						self._send_review_reminder(pr)
-
-					break  # Success, exit the retry loop
-
-				except Exception as e:
-					retry_count += 1
-					self.logger.error(
-						f"Attempt {retry_count} failed: {str(e)}")
-					if retry_count == max_retries:
-						self.logger.error("Max retries reached, giving up")
-						raise
-					self.db.session.rollback()
-
+			for pr in prs_needing_reminders:
+				self._send_review_reminder(pr)
 		except Exception as e:
 			self.logger.error(f"Error in reminder scheduler: {str(e)}")
 			# Ensure the session is clean for the next run
