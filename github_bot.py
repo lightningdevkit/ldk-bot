@@ -48,7 +48,7 @@ class GitHubBot:
 
 				if existing_pr:
 					existing_pr.status = PRStatus.CLOSED
-					reviews = Review.query.filter_by(pr_number=pr['number']).all()
+					reviews = Review.query.filter_by(pr_number=pr['number'], repo_name=repo_name).all()
 					for review in reviews:
 						if review.completed_at is None:
 							review.completed_at = datetime.utcnow()
@@ -152,13 +152,15 @@ class GitHubBot:
 
 	def _handle_converted_to_draft(self, pr):
 		"""Handle PR being converted to draft."""
+		repo_name = pr['base']['repo']['full_name']
 		pr_record = PullRequest.query.filter_by(
 			pr_number=pr['number'],
-			repo_name=pr['base']['repo']['full_name']).first()
+			repo_name=repo_name).first()
 
 		if pr_record:
 			requests_completed = Review.query.filter(
 				Review.pr_number == pr['number'],
+				Review.repo_name == repo_name,
 				Review.reviewer == review['user']['login']).all()
 			for request in requests_completed:
 				request.delete()
@@ -201,10 +203,10 @@ class GitHubBot:
 		self._update_comment(repo_url, pr_record, comment)
 
 		# Update PR status
-		self._add_pending_review(pr_number, reviewer)
+		self._add_pending_review(repo_name, pr_number, reviewer)
 
-	def _add_pending_review(self, pr_number, reviewer):
-		new_review = Review(pr_number=pr_number, reviewer=reviewer)
+	def _add_pending_review(self, repo_name, pr_number, reviewer):
+		new_review = Review(repo_name=repo_name, pr_number=pr_number, reviewer=reviewer)
 		self.db.session.add(new_review)
 
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
@@ -218,9 +220,10 @@ class GitHubBot:
 		action = data.get('action')
 		pr = data.get('pull_request')
 		review = data.get('review')
+		repo_name = pr['base']['repo']['full_name']
 
 		if action == 'review_requested':
-			self._add_pending_review(pr['number'], review['user']['login'])
+			self._add_pending_review(repo_name, pr['number'], review['user']['login'])
 			return
 
 		if not review or not pr:
@@ -229,13 +232,14 @@ class GitHubBot:
 
 		pr_record = PullRequest.query.filter_by(
 			pr_number=pr['number'],
-			repo_name=pr['base']['repo']['full_name']).first()
+			repo_name=repo_name).first()
 
 		if not pr_record:
 			self.logger.error(f"No PR Record for: {pr['number']}")
 			return
 
 		requests_completed = Review.query.filter(
+			Review.repo_name == repo_name,
 			Review.pr_number == pr['number'],
 			Review.reviewer == review['user']['login']).all()
 		for request in requests_completed:
@@ -259,7 +263,7 @@ class GitHubBot:
 		if response.status_code != 201:
 			raise Exception(f"Failed to assign reviewers: {response.text}")
 		for reviewer in reviewers:
-			self._add_pending_review(pr_number, reviewer)
+			self._add_pending_review(repo_name, pr_number, reviewer)
 
 	def _create_comment(self, repo_url, pr_number, body):
 		"""Create a comment on a PR."""
