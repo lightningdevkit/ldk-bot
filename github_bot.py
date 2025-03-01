@@ -186,7 +186,9 @@ class GitHubBot:
 		reviewer = requested_reviewer['login']
 
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
-		assert pr_record is not None
+		if pr_record is None:
+			self.logger.info(f"Got a review-request before PR #{pr_number} was open, probably it had assignment on open")
+			return
 		pr_record.status = PRStatus.PENDING_REVIEW
 
 		pending_review = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name, reviewer=reviewer, completed_at=None).first()
