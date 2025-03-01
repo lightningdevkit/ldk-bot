@@ -185,8 +185,15 @@ class GitHubBot:
 		pr_number = pr['number']
 
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
-
 		assert pr_record is not None
+		pr_record.status = PRStatus.PENDING_REVIEW
+
+		pending_review = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name, reviewer=reviewer, completed_at=None).first()
+		if pending_review:
+			# Probably we already assigned on the bot and then got the callback for the assignment
+			self.db.session.commit()
+			return
+
 		assert pr_record.initial_comment_id is not None
 
 		# Get the assigned reviewer's username
@@ -227,10 +234,6 @@ class GitHubBot:
 		pr = data.get('pull_request')
 		review = data.get('review')
 		repo_name = pr['base']['repo']['full_name']
-
-		if action == 'review_requested':
-			self._add_pending_review(repo_name, pr['number'], review['user']['login'])
-			return
 
 		if not review or not pr:
 			self.logger.error("No review/PR in req!")
