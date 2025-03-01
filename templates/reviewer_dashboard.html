@@ -85,7 +85,7 @@
             <h3>Pending Reviews</h3>
             {% for review in data.pending_reviews %}
             <div class="review-item pending">
-                <strong>PR #{{ review.pr_number }}</strong>
+                <strong>PR #{{ review.pr_number }}</strong> - {{review.pr_title}}
                 <br>
                 Waiting for: {{ review.pending_duration }} minutes
             </div>
@@ -98,7 +98,7 @@
             <h3>Recent Completed Reviews</h3>
             {% for review in data.completed_reviews[:5] %}
             <div class="review-item completed">
-                <strong>PR #{{ review.pr_number }}</strong>
+                <strong>PR #{{ review.pr_number }}</strong> - {{review.pr_title}}
                 <br>
                 Completed in: {{ review.review_duration }} minutes
             </div>

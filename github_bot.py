@@ -92,8 +92,7 @@ class GitHubBot:
 		pr_number = pr['number']
 
 		# Create new PR record
-		new_pr = PullRequest(pr_number=pr_number,
-								repo_name=repo_name,
+		new_pr = PullRequest(pr_number=pr_number, repo_name=repo_name, pr_title = pr['title'],
 								status=PRStatus.PENDING_REVIEWER_CHOICE)
 
 		if pr.get('draft', False):

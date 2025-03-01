@@ -14,6 +14,7 @@ class PullRequest(db.Model):
 
 	pr_number = db.Column(db.Integer, primary_key=True)
 	repo_name = db.Column(db.String(200), primary_key=True)
+	pr_title = db.Column(db.String(500), nullable=False)
 	status = db.Column(db.Enum(PRStatus), default=PRStatus.PENDING_REVIEWER_CHOICE)
 	created_at = db.Column(db.DateTime, default=datetime.utcnow)
 	last_reminder_sent = db.Column(db.DateTime, nullable=True)
@@ -31,6 +32,10 @@ class Review(db.Model):
 	completed_at = db.Column(db.DateTime, nullable=True)
 	__table_args__ = (db.ForeignKeyConstraint([repo_name, pr_number],
 						[PullRequest.repo_name, PullRequest.pr_number]), {})
+
+	@property
+	def pr_title(self):
+		return PullRequest.query.filter_by(pr_number = self.pr_number, repo_name = self.repo_name).first().pr_title
 
 	@property
 	def review_duration(self):
