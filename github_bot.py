@@ -390,7 +390,7 @@ class GitHubBot:
 			if pr_data.get('requested_reviewers') and len(pr_data['requested_reviewers']) > 0:
 				self.logger.info(f"PR #{pr_record.pr_number} already has reviewers assigned, skipping auto-assignment")
 				# Update PR status to needs_review since it already has reviewers
-				pr_record.status = PRStatus.NEEDS_REVIEW
+				pr_record.status = PRStatus.PENDING_REVIEW
 				self.db.session.commit()
 				return
 
