@@ -160,10 +160,9 @@ class GitHubBot:
 		if pr_record:
 			requests_completed = Review.query.filter(
 				Review.pr_number == pr['number'],
-				Review.repo_name == repo_name,
-				Review.reviewer == review['user']['login']).all()
+				Review.repo_name == repo_name).all()
 			for request in requests_completed:
-				request.delete()
+				self.db.session.delete(request)
 
 			if pr_record.initial_comment_id:
 				# Update the initial comment
@@ -335,6 +334,14 @@ class GitHubBot:
 		# Skip if PR is in draft
 		if pr.get('draft', False):
 			self.logger.info(f"PR #{pr_record.pr_number} is in draft, skipping auto-assignment")
+			return
+
+		if pr.get('closed_at') is not None:
+			self.logger.info(f"PR #{pr_record.pr_number} is closed, skipping auto-assignment")
+			return
+
+		if pr.get('merged_at') is not None:
+			self.logger.info(f"PR #{pr_record.pr_number} is merged, skipping auto-assignment")
 			return
 
 		pr_author = pr['user']['login']
@@ -522,7 +529,7 @@ class GitHubBot:
 				for user in pr_data.get('requested_reviewers', [])
 			]
 
-			reviews = Review.query.filter_by(pr_number=pr_record.pr_number, repo_name=repo_name).all()
+			reviews = Review.query.filter_by(pr_number=pr_record.pr_number, repo_name=pr_record.repo_name).all()
 			for review in reviews:
 				current_reviewers.append(review.reviewer)
 
