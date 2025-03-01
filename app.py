@@ -48,7 +48,7 @@ def reminder_scheduler():
 			try:
 				github_bot.check_and_send_reminders()
 			except Exception as e:
-				logger.error(f"Error in reminder scheduler: {str(e)}")
+				logger.exception(f"Error in reminder scheduler: {str(e)}")
 			# Sleep for 1 minute before next check
 			time.sleep(60)
 
@@ -81,7 +81,7 @@ def webhook():
 			github_bot.handle_review_event(data)
 		return jsonify({'status': 'success'}), 200
 	except Exception as e:
-		logger.error(f"Error processing webhook: {str(e)}")
+		logger.exception(f"Error processing webhook: {str(e)}")
 		return jsonify({'error': str(e)}), 500
 
 @app.route('/stats')
@@ -96,7 +96,7 @@ def check_reminders():
 		github_bot.check_and_send_reminders()
 		return jsonify({'status': 'success', 'message': 'Reminder check triggered'}), 200
 	except Exception as e:
-		logger.error(f"Error checking reminders: {str(e)}")
+		logger.exception(f"Error checking reminders: {str(e)}")
 		return jsonify({'error': str(e)}), 500
 
 @app.route('/assign-second-reviewer/<repo_org>/<repo_name>/<int:pr_number>')
@@ -113,7 +113,7 @@ def assign_second_reviewer(repo_org, repo_name, pr_number):
 								message="Failed to assign second reviewer.",
 								back_url=f"/")
 	except Exception as e:
-		logger.error(f"Error assigning second reviewer: {str(e)}")
+		logger.exception(f"Error assigning second reviewer: {str(e)}")
 		return render_template('error.html', 
 							message=f"Error: {str(e)}",
 							back_url=f"/")

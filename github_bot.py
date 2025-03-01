@@ -407,76 +407,38 @@ class GitHubBot:
 
 				self.logger.info(f"Auto-assigned first reviewer for PR #{pr_record.pr_number}: {selected_reviewer}")
 		except Exception as e:
-			self.logger.error(f"Error auto-assigning reviewers: {str(e)}")
+			self.logger.exception(f"Error auto-assigning reviewers: {str(e)}")
 
 	def check_and_send_reminders(self):
 		"""Check for PRs needing review reminders and auto-assign reviewers."""
 		self.logger.info("Checking for PRs needing review reminders...")
 
-		try:
-			current_time = datetime.utcnow()
-			reviewer_threshold = current_time - timedelta(minutes=10)
-			reminder_threshold = current_time - timedelta(days=1)
+		current_time = datetime.utcnow()
+		reviewer_threshold = current_time - timedelta(minutes=10)
+		reminder_threshold = current_time - timedelta(days=1)
 
-			# Force a new connection from the pool
-			self.db.session.remove()
+		# Force a new connection from the pool
+		self.db.session.remove()
 
-			# Find PRs needing reviewer assignment (no reviewers after 10 minutes)
-			prs_needing_assignment = PullRequest.query.filter(
-				PullRequest.status == PRStatus.PENDING_REVIEWER_CHOICE,
-				PullRequest.created_at <= reviewer_threshold).all()
+		# Find PRs needing reviewer assignment (no reviewers after 10 minutes)
+		prs_needing_assignment = PullRequest.query.filter(
+			PullRequest.status == PRStatus.PENDING_REVIEWER_CHOICE,
+			PullRequest.created_at <= reviewer_threshold).all()
 
-			# Auto-assign reviewers for these PRs
-			for pr in prs_needing_assignment:
-				self.auto_assign_reviewers(pr)
+		# Auto-assign reviewers for these PRs
+		for pr in prs_needing_assignment:
+			self.auto_assign_reviewers(pr)
 
-			# Original reminder logic
-			prs_needing_reminders = PullRequest.query.filter(
-				PullRequest.status == PRStatus.PENDING_REVIEW,
-				((PullRequest.last_reminder_sent.is_(None) &
-						(PullRequest.created_at <= reminder_threshold)) |
-					(PullRequest.last_reminder_sent
-						<= reminder_threshold))).all()
+		# Original reminder logic
+		prs_needing_reminders = PullRequest.query.filter(
+			PullRequest.status == PRStatus.PENDING_REVIEW,
+			((PullRequest.last_reminder_sent.is_(None) &
+					(PullRequest.created_at <= reminder_threshold)) |
+				(PullRequest.last_reminder_sent
+					<= reminder_threshold))).all()
 
-			for pr in prs_needing_reminders:
-				self._send_review_reminder(pr)
-		except Exception as e:
-			self.logger.error(f"Error in reminder scheduler: {str(e)}")
-			# Ensure the session is clean for the next run
-			self.db.session.rollback()
-
-	def request_review(self, pr_record):
-		"""Request reviews when PR is marked as needing review."""
-		try:
-			# Get assigned reviewers for the PR
-			repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
-			pr_url = f"{repo_url}/pulls/{pr_record.pr_number}"
-
-			response = requests.get(pr_url, headers=self.headers)
-			if response.status_code != 200:
-				self.logger.error(f"Failed to fetch PR data: {response.text}")
-				return
-
-			pr_data = response.json()
-			reviewers = [
-				user['login']
-				for user in pr_data.get('requested_reviewers', [])
-			]
-
-			if reviewers:
-				reviewer_tags = ' '.join(
-					[f'@{reviewer}' for reviewer in reviewers])
-				message = (
-					f"👋 Hey {reviewer_tags}!\n\n"
-					"This PR has been marked as needing another review. "
-					"Could you please take another look when you have a chance?"
-				)
-				self._create_comment(repo_url, pr_record.pr_number, message)
-
-		except Exception as e:
-			self.logger.error(
-				f"Error requesting review for PR #{pr_record.pr_number}: {str(e)}"
-			)
+		for pr in prs_needing_reminders:
+			self._send_review_reminder(pr)
 
 	def _send_review_reminder(self, pr):
 		"""Send a reminder comment on a PR."""
@@ -525,31 +487,22 @@ class GitHubBot:
 			self.logger.info(f"Sent review reminder for PR #{pr.pr_number}")
 
 		except Exception as e:
-			self.logger.error(
-				f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")
+			self.logger.exception(f"Error sending reminder for PR #{pr.pr_number}: {str(e)}")
 
 	def _has_bot_comment_about_second_reviewer(self, repo_url, pr_number):
 		"""Check if bot has already asked about second reviewer."""
-		try:
-			# Get all comments on the PR
-			comments_url = f"{repo_url}/issues/{pr_number}/comments"
-			response = requests.get(comments_url, headers=self.headers)
-			if response.status_code != 200:
-				self.logger.error(f"Failed to fetch comments: {response.text}")
-				return False
+		# Get all comments on the PR
+		comments_url = f"{repo_url}/issues/{pr_number}/comments"
+		response = requests.get(comments_url, headers=self.headers)
+		response.raise_for_status()
 
-			comments = response.json()
-			# Look for our specific second reviewer question
-			for comment in comments:
-				if "Do you think this PR is ready for a second reviewer?" in comment.get(
-						'body', ''):
-					return True
-			return False
-
-		except Exception as e:
-			self.logger.error(
-				f"Error checking for existing bot comments: {str(e)}")
-			return False
+		comments = response.json()
+		# Look for our specific second reviewer question
+		for comment in comments:
+			if "Do you think this PR is ready for a second reviewer?" in comment.get(
+					'body', ''):
+				return True
+		return False
 
 	def _ask_for_second_reviewer(self, pr, pr_record):
 		"""Ask if a second reviewer is needed after first review."""
@@ -593,7 +546,7 @@ class GitHubBot:
 			self.logger.info(f"Asked about second reviewer for PR #{pr_record.pr_number}")
 
 		except Exception as e:
-			self.logger.error(f"Error asking for second reviewer: {str(e)}")
+			self.logger.exception(f"Error asking for second reviewer: {str(e)}")
 
 	def assign_second_reviewer(self, repo_name, pr_number):
 		"""Assign a second reviewer to a PR."""
@@ -624,5 +577,5 @@ class GitHubBot:
 				return True
 			return False
 		except Exception as e:
-			self.logger.error(f"Error assigning second reviewer: {str(e)}")
+			self.logger.exception(f"Error assigning second reviewer: {str(e)}")
 			return False
