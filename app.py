@@ -122,6 +122,7 @@ def reviewer_dashboard():
 			reviewers[reviewer] = {
 				'pending_reviews': [],
 				'completed_reviews': [],
+				'total_duration': 0,
 				'avg_duration': 0,
 				'total_reviews': 0
 			}
@@ -129,13 +130,15 @@ def reviewer_dashboard():
 		if review.completed_at:
 			reviewers[reviewer]['completed_reviews'].append(review)
 			delta = review.completed_at - review.requested_at
-			review_duration = int(delta.total_seconds() / 60)  # Duration in minutes
+			review_duration = delta.total_seconds() / 60  # Duration in minutes
+			reviewers[reviewer]['total_duration'] += review_duration
 			reviewers[reviewer]['total_reviews'] += 1
-			# Recalculate average duration
-			current_total = reviewers[reviewer]['avg_duration'] * (reviewers[reviewer]['total_reviews'] - 1)
-			new_avg = (current_total + review_duration) / reviewers[reviewer]['total_reviews']
-			reviewers[reviewer]['avg_duration'] = round(new_avg, 1)
 		else:
 			reviewers[reviewer]['pending_reviews'].append(review)
+
+	for reviewer in reviewers:
+		review_count = reviewers[reviewer]['total_reviews']
+		if review_count > 0:
+			reviewers[reviewer]['avg_duration'] = round(reviewers[reviewer]['total_duration'] / review_count)
 
 	return render_template('reviewer_dashboard.html', reviewers=reviewers)

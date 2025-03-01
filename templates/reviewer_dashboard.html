@@ -85,11 +85,9 @@
             <h3>Pending Reviews</h3>
             {% for review in data.pending_reviews %}
             <div class="review-item pending">
-                <strong>PR #{{ review.pull_request.pr_number }}</strong> - 
-                {{ review.pull_request.title }}
+                <strong>PR #{{ review.pr_number }}</strong>
                 <br>
                 Waiting for: {{ review.pending_duration }} minutes
-                {% if review.is_rereview %}(Re-review requested){% endif %}
             </div>
             {% endfor %}
         </div>
@@ -100,11 +98,9 @@
             <h3>Recent Completed Reviews</h3>
             {% for review in data.completed_reviews[:5] %}
             <div class="review-item completed">
-                <strong>PR #{{ review.pull_request.pr_number }}</strong> - 
-                {{ review.pull_request.title }}
+                <strong>PR #{{ review.pr_number }}</strong>
                 <br>
                 Completed in: {{ review.review_duration }} minutes
-                {% if review.is_rereview %}(Was a re-review){% endif %}
             </div>
             {% endfor %}
         </div>

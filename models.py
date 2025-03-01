@@ -33,8 +33,14 @@ class Review(db.Model):
 						[PullRequest.repo_name, PullRequest.pr_number]), {})
 
 	@property
+	def review_duration(self):
+		if self.completed_at:
+			delta = self.completed_at - self.requested_at
+			return int(delta.total_seconds() / 60)
+		return None
+
+	@property
 	def pending_duration(self):
-		"""Get current pending duration in minutes for incomplete reviews"""
 		if not self.completed_at:
 			delta = datetime.utcnow() - self.requested_at
 			return int(delta.total_seconds() / 60)
