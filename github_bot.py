@@ -183,6 +183,7 @@ class GitHubBot:
 
 		repo_name = pr['base']['repo']['full_name']
 		pr_number = pr['number']
+		reviewer = requested_reviewer['login']
 
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
 		assert pr_record is not None
@@ -195,9 +196,6 @@ class GitHubBot:
 			return
 
 		assert pr_record.initial_comment_id is not None
-
-		# Get the assigned reviewer's username
-		reviewer = requested_reviewer['login']
 
 		# Update the initial comment
 		comment = (
@@ -640,6 +638,10 @@ class GitHubBot:
 				for user in pr_data.get('requested_reviewers', [])
 			]
 
+			reviews = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name).all()
+			for review in reviews:
+				current_reviewers.append(review.reviewer)
+
 			# Get collaborators excluding PR author and current reviewers
 			collaborators = [
 				c for c in self.get_repo_collaborators(repo_name)
@@ -660,16 +662,13 @@ class GitHubBot:
 					reviewer_counts[collaborator] = 0
 
 			# Sort collaborators by PR count
-			sorted_reviewers = sorted(collaborators,
-											key=lambda x: reviewer_counts.get(x, 0))
+			sorted_reviewers = sorted(collaborators, key=lambda x: reviewer_counts.get(x, 0))
 
 			# Select the reviewer with least PRs
-			selected_reviewer = sorted_reviewers[
-				0] if sorted_reviewers else None
+			selected_reviewer = sorted_reviewers[0] if sorted_reviewers else None
 
 			if selected_reviewer:
-				self.assign_reviewers(repo_name, pr_number,
-											[selected_reviewer])
+				self.assign_reviewers(repo_name, pr_number, [selected_reviewer])
 				self.logger.info(
 					f"Assigned second reviewer for PR #{pr_number}: {selected_reviewer}"
 				)
