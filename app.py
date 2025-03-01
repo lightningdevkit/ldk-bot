@@ -89,16 +89,6 @@ def stats():
 	"""Return bot statistics."""
 	return jsonify(github_bot.get_stats())
 
-@app.route('/check-reminders', methods=['POST'])
-def check_reminders():
-	"""Manually trigger reminder checks."""
-	try:
-		github_bot.check_and_send_reminders()
-		return jsonify({'status': 'success', 'message': 'Reminder check triggered'}), 200
-	except Exception as e:
-		logger.exception(f"Error checking reminders: {str(e)}")
-		return jsonify({'error': str(e)}), 500
-
 @app.route('/assign-second-reviewer/<repo_org>/<repo_name>/<int:pr_number>')
 def assign_second_reviewer(repo_org, repo_name, pr_number):
 	"""Assign a second reviewer to the PR."""
