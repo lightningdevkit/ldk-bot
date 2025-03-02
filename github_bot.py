@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 
 APP_BASE_URL="https://ldk-reviews-bot.bluematt.me/"
 
+MIN_PR_ID = 3634
+
 class GitHubBot:
 	def __init__(self, token, webhook_secret, db):
 		self.token = token
@@ -34,6 +36,8 @@ class GitHubBot:
 		self.logger.info(f"Found {len(prs)} pull requests")
 
 		for pr in prs:
+			if pr['number'] < MIN_PR_ID:
+				continue
 			if pr['state'] == "open":
 				# Check if PR already exists in database
 				existing_pr = PullRequest.query.filter_by(
@@ -90,6 +94,9 @@ class GitHubBot:
 		repo_url = pr['base']['repo']['url']
 		repo_name = pr['base']['repo']['full_name']
 		pr_number = pr['number']
+
+		if pr_number < MIN_PR_ID:
+			return
 
 		# Create new PR record
 		new_pr = PullRequest(pr_number=pr_number, repo_name=repo_name, pr_title = pr['title'],
@@ -188,6 +195,9 @@ class GitHubBot:
 		pr_number = pr['number']
 		reviewer = requested_reviewer['login']
 
+		if pr_number < MIN_PR_ID:
+			return
+
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
 		if pr_record is None:
 			self.logger.info(f"Got a review-request before PR #{pr_number} was open, probably it had assignment on open")
@@ -239,13 +249,14 @@ class GitHubBot:
 		repo_name = pr['base']['repo']['full_name']
 		reviewer = review['user']['login']
 
+		if pr['number'] < MIN_PR_ID:
+			return
+
 		if not review or not pr:
 			self.logger.error("No review/PR in req!")
 			return
 
-		pr_record = PullRequest.query.filter_by(
-			pr_number=pr['number'],
-			repo_name=repo_name).first()
+		pr_record = PullRequest.query.filter_by(pr_number=pr['number'], repo_name=repo_name).first()
 
 		if not pr_record:
 			self.logger.error(f"No PR Record for: {pr['number']}")
