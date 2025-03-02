@@ -76,7 +76,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ data.avg_duration }}</div>
-                <div>Avg. Review Time (min)</div>
+                <div>Avg. Review Time (hours)</div>
             </div>
         </div>
 
@@ -87,7 +87,7 @@
             <div class="review-item pending">
                 <strong>PR #{{ review.pr_number }}</strong> - {{review.pr_title}}
                 <br>
-                Waiting for: {{ review.pending_duration }} minutes
+                Waiting for: {{ review.pending_duration }} hours
             </div>
             {% endfor %}
         </div>
@@ -100,7 +100,7 @@
             <div class="review-item completed">
                 <strong>PR #{{ review.pr_number }}</strong> - {{review.pr_title}}
                 <br>
-                Completed in: {{ review.review_duration }} minutes
+                Completed in: {{ review.review_duration }} hours
             </div>
             {% endfor %}
         </div>
