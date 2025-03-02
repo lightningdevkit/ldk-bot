@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Confirm Second Reviewer Assignment</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .confirmation-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button-container {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .confirm-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .cancel-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="confirmation-card">
+        <h2>Confirm Second Reviewer Assignment</h2>
+        <p>Are you sure you want to assign a second reviewer to PR #{{ pr_number }}?</p>
+        <p>This will:</p>
+        <ul>
+            <li>Automatically select an available reviewer based on current workload</li>
+            <li>Add them as a reviewer to your pull request</li>
+            <li>Notify them via GitHub</li>
+        </ul>
+        
+        <div class="button-container">
+            <form method="POST" action="/assign-second-reviewer/{{ repo_org }}/{{ repo_name }}/{{ pr_number }}/confirm">
+                <button type="submit" class="confirm-button">Yes, Assign Second Reviewer</button>
+            </form>
+            <a href="/" class="cancel-button">Cancel</a>
+        </div>
+    </div>
+</body>
+</html>

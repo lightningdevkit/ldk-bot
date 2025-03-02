@@ -91,22 +91,22 @@ def stats():
 
 @app.route('/assign-second-reviewer/<repo_org>/<repo_name>/<int:pr_number>')
 def assign_second_reviewer(repo_org, repo_name, pr_number):
-	"""Assign a second reviewer to the PR."""
+	"""Show confirmation page for assigning a second reviewer."""
+	return render_template('confirm_second_reviewer.html', repo_org=repo_org, repo_name=repo_name, pr_number=pr_number)
+
+@app.route('/assign-second-reviewer/<repo_org>/<repo_name>/<int:pr_number>/confirm', methods=['POST'])
+def confirm_assign_second_reviewer(repo_org, repo_name, pr_number):
+	"""Actually assign a second reviewer after confirmation."""
+	back_url = f"https://github.com/{repo_org}/{repo_name}/pull/{pr_number}"
 	try:
 		success = github_bot.assign_second_reviewer(repo_org + "/" + repo_name, pr_number)
 		if success:
-			return render_template('success.html', 
-								message="Second reviewer assigned successfully!",
-								back_url=f"/")
+			return render_template('success.html', message="Second reviewer assigned successfully!", back_url=back_url)
 		else:
-			return render_template('error.html', 
-								message="Failed to assign second reviewer.",
-								back_url=f"/")
+			return render_template('error.html', message="Failed to assign second reviewer.", back_url=back_url)
 	except Exception as e:
 		logger.exception(f"Error assigning second reviewer: {str(e)}")
-		return render_template('error.html', 
-							message=f"Error: {str(e)}",
-							back_url=f"/")
+		return render_template('error.html', message=f"Error: {str(e)}", back_url=back_url)
 
 @app.route('/reviewer-dashboard')
 def reviewer_dashboard():
