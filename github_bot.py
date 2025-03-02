@@ -542,30 +542,35 @@ class GitHubBot:
 				return True
 		return False
 
+	def get_current_reviewers(self, repo_name, pr_number):
+		repo_url = f"https://api.github.com/repos/{repo_name}"
+
+		pr_url = f"{repo_url}/pulls/{pr_number}"
+		response = requests.get(pr_url, headers=self.headers)
+		response.raise_for_status()
+
+		pr_data = response.json()
+		current_reviewers = [
+			user['login']
+			for user in pr_data.get('requested_reviewers', [])
+		]
+
+		reviews = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name).all()
+		for review in reviews:
+			current_reviewers.append(review.reviewer)
+
+		return current_reviewers
+
 	def _ask_for_second_reviewer(self, pr, pr_record):
 		"""Ask if a second reviewer is needed after first review."""
 		try:
-			repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
-
-			# Check if this PR already has more than one reviewer assigned
-			pr_url = f"{repo_url}/pulls/{pr_record.pr_number}"
-			response = requests.get(pr_url, headers=self.headers)
-			response.raise_for_status()
-
-			pr_data = response.json()
-			current_reviewers = [
-				user['login']
-				for user in pr_data.get('requested_reviewers', [])
-			]
-
-			reviews = Review.query.filter_by(pr_number=pr_record.pr_number, repo_name=pr_record.repo_name).all()
-			for review in reviews:
-				current_reviewers.append(review.reviewer)
+			current_reviewers = self.get_current_reveiewers(pr_record.repo_name, pr_record.pr_number)
 
 			# If there's already more than one reviewer, don't ask
 			if len(current_reviewers) > 1:
 				return
 
+			repo_url = f"https://api.github.com/repos/{repo_name}"
 			# Check if we've already asked about a second reviewer
 			if self._has_bot_comment_about_second_reviewer(repo_url, pr_record.pr_number):
 				self.logger.info(f"Already asked about second reviewer for PR #{pr_record.pr_number}")
