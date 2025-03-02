@@ -454,7 +454,7 @@ class GitHubBot:
 
 		current_time = datetime.utcnow()
 		reviewer_threshold = current_time - timedelta(minutes=10)
-		reminder_threshold = current_time - timedelta(days=1)
+		reminder_threshold = current_time - timedelta(days=2)
 
 		# Force a new connection from the pool
 		self.db.session.remove()
@@ -468,16 +468,18 @@ class GitHubBot:
 		for pr in prs_needing_assignment:
 			self.auto_assign_reviewers(pr)
 
-		# Original reminder logic
-		prs_needing_reminders = PullRequest.query.filter(
-			PullRequest.status == PRStatus.PENDING_REVIEW,
-			((PullRequest.last_reminder_sent.is_(None) &
-					(PullRequest.created_at <= reminder_threshold)) |
-				(PullRequest.last_reminder_sent
-					<= reminder_threshold))).all()
+		# Nag reviewers, but only on weekdays
+		now = datetime.utcnow()
+		if now.weekday() < 4 or (now.weekday() == 5 and now.hour < 17):
+			prs_needing_reminders = PullRequest.query.filter(
+				PullRequest.status == PRStatus.PENDING_REVIEW,
+				((PullRequest.last_reminder_sent.is_(None) &
+						(PullRequest.created_at <= reminder_threshold)) |
+					(PullRequest.last_reminder_sent
+						<= reminder_threshold))).all()
 
-		for pr in prs_needing_reminders:
-			self._send_review_reminder(pr)
+			for pr in prs_needing_reminders:
+				self._send_review_reminder(pr)
 
 	def _send_review_reminder(self, pr):
 		"""Send a reminder comment on a PR."""
@@ -487,9 +489,7 @@ class GitHubBot:
 			pr_url = f"{repo_url}/pulls/{pr.pr_number}"
 
 			response = requests.get(pr_url, headers=self.headers)
-			if response.status_code != 200:
-				self.logger.error(f"Failed to fetch PR data: {response.text}")
-				return
+			response.raise_for_status()
 
 			pr_data = response.json()
 			reviewers = [
@@ -498,8 +498,7 @@ class GitHubBot:
 			]
 
 			if not reviewers:
-				self.logger.info(
-					f"No reviewers to remind for PR #{pr.pr_number}")
+				self.logger.info(f"No reviewers to remind for PR #{pr.pr_number}")
 				return
 
 			# Create reminder message tagging all reviewers
