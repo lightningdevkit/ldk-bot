@@ -87,7 +87,7 @@
             <div class="review-item pending">
                 <strong>PR #{{ review.pr_number }}</strong> - {{review.pr_title}}
                 <br>
-                Waiting for: {{ review.pending_duration }} hours
+                Waiting for: {{ review.review_duration_hours }} hours
             </div>
             {% endfor %}
         </div>
@@ -100,7 +100,7 @@
             <div class="review-item completed">
                 <strong>PR #{{ review.pr_number }}</strong> - {{review.pr_title}}
                 <br>
-                Completed in: {{ review.review_duration }} hours
+                Completed in: {{ review.review_duration_hours }} hours
             </div>
             {% endfor %}
         </div>

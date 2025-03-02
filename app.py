@@ -129,8 +129,7 @@ def reviewer_dashboard():
 
 		if review.completed_at:
 			reviewers[reviewer]['completed_reviews'].append(review)
-			delta = review.completed_at - review.requested_at
-			review_duration = delta.total_seconds() / 60 / 60
+			review_duration = review.review_duration.total_seconds() / 3600.0
 			reviewers[reviewer]['total_duration'] += review_duration
 			reviewers[reviewer]['total_reviews'] += 1
 		else:

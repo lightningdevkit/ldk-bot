@@ -1,6 +1,10 @@
-from datetime import datetime
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from enum import Enum
 from db import db
+import logging
+
+logger = logging.getLogger("model")
 
 class PRStatus(Enum):
 	PENDING_REVIEWER_CHOICE = 0
@@ -39,14 +43,44 @@ class Review(db.Model):
 
 	@property
 	def review_duration(self):
-		if self.completed_at:
-			delta = self.completed_at - self.requested_at
-			return int(delta.total_seconds() / 60)
-		return None
+		end = self.completed_at if self.completed_at else datetime.utcnow()
+		end = end.replace(tzinfo=timezone.utc)
+		start = self.requested_at.replace(tzinfo=timezone.utc)
+		reviewer_tzs = {
+			'TheBlueMatt': 'America/New_York',
+			'valentinewallace': 'America/New_York',
+			'wpaulino': 'America/Los_Angeles',
+			'tnull': 'Europe/Berlin',
+			'joostjager': 'Europe/Berlin',
+			'jkczyz': 'America/Chicago',
+			'arik-so': 'America/Los_Angeles'
+		}
+		reviewer_tz = reviewer_tzs.get(self.reviewer)
+		if reviewer_tz is None:
+			logger.warn(f"Missing timezone for reviewer {self.reviewer}")
+			reviewer_tz = 'America/New_York'
+		tzinfo = ZoneInfo(reviewer_tz)
+
+		# Just do the naive calculation by looping
+		start_localized = start.astimezone(tzinfo)
+		end_localized = end.astimezone(tzinfo)
+		total_time = timedelta(0)
+		while start_localized < end_localized:
+			if start_localized.weekday() > 4 or start_localized.hour < 9 or start_localized.hour > 17:
+				start_localized = start_localized.replace(hour=9, minute=0, second=0, microsecond=0)
+				if start_localized.weekday() > 4:
+					start_localized += timedelta(days=1)
+				continue
+			workday_end = time(hour=17, minute=0, second=0, microsecond=0, tzinfo=tzinfo)
+			workday_time = workday_end - start_localized.timetz()
+			if start_localized.date() == end_localized.date():
+				actual_time = end_localized.timetz() - start_localized.timetz()
+				total_time += min(workday_time, actual_time)
+			else:
+				total_time += workday_time
+				start_localized = start_localized.replace(hour = 18) # Let the next loop iteration jump to the next day
+		return total_time
 
 	@property
-	def pending_duration(self):
-		if not self.completed_at:
-			delta = datetime.utcnow() - self.requested_at
-			return int(delta.total_seconds() / 60)
-		return None
+	def review_duration_hours(self):
+		return round(self.review_duration.total_seconds() / 3600)
