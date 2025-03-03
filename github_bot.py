@@ -131,16 +131,14 @@ class GitHubBot:
 	def _handle_closed_pr(self, pr):
 		"""Handle closed pull request."""
 		repo_name = pr['base']['repo']['full_name']
-		pr_record = PullRequest.query.filter_by(
-			pr_number=pr['number'],
-			repo_name=repo_name).first()
+		pr_record = PullRequest.query.filter_by(pr_number=pr['number'], repo_name=repo_name).first()
 
 		if pr_record:
 			pr_record.status = PRStatus.CLOSED
 			reviews = Review.query.filter_by(pr_number=pr['number'], repo_name=repo_name).all()
 			for review in reviews:
 				if review.completed_at is None:
-					review.completed_at = datetime.utcnow()
+					self.db.session.delete(review)
 			self.db.session.commit()
 
 	def _handle_ready_for_review(self, pr):
