@@ -255,6 +255,24 @@ class GitHubBot:
 			self.logger.error("No review/PR in req!")
 			return
 
+		if review["state"] == "commented":
+			# Github sends webhooks for simple comments and treats them as "reviews".
+			review_web_url = review["_links"]["html"]["href"]
+			review_id = review_web_url.split(f"{pr['number']}#pullrequestreview-")
+			assert len(review_id) == 2
+			review_id = review_id[1]
+
+			comment_list_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr['number']}/comments"
+			comment_list = requests.get(comment_list_url, headers=self.headers)
+			comment_list.raise_for_status()
+			actually_a_review = False
+			for comment in comment_list.json():
+				if comment["pull_request_review_id"] == review_id:
+					if comment.get("in_reply_to_id") is None:
+						actually_a_review = True
+			if not actually_a_review:
+				self.logger.info("Concluded that reivew id {review_id} is not a real review. It is theoretically at {review_web_url}")
+
 		pr_record = PullRequest.query.filter_by(pr_number=pr['number'], repo_name=repo_name).first()
 
 		if not pr_record:
