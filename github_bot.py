@@ -564,7 +564,7 @@ class GitHubBot:
 	def _ask_for_second_reviewer(self, pr, pr_record):
 		"""Ask if a second reviewer is needed after first review."""
 		try:
-			current_reviewers = self.get_current_reveiewers(pr_record.repo_name, pr_record.pr_number)
+			current_reviewers = self.get_current_reviewers(pr_record.repo_name, pr_record.pr_number)
 
 			# If there's already more than one reviewer, don't ask
 			if len(current_reviewers) > 1:
