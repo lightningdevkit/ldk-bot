@@ -255,9 +255,9 @@ class GitHubBot:
 			self.logger.error("No review/PR in req!")
 			return
 
+		review_web_url = review["_links"]["html"]["href"]
 		if review["state"] == "commented":
 			# Github sends webhooks for simple comments and treats them as "reviews".
-			review_web_url = review["_links"]["html"]["href"]
 			review_id = review_web_url.split(f"{pr['number']}#pullrequestreview-")
 			assert len(review_id) == 2
 			review_id = review_id[1]
@@ -286,6 +286,7 @@ class GitHubBot:
 
 		for request in requests_completed:
 			request.completed_at = datetime.utcnow()
+			request.review_url = review_web_url
 
 		if len(requests_completed) == 0:
 			pr_author = pr['user']['login']
@@ -294,7 +295,7 @@ class GitHubBot:
 				if c != pr_author
 			]
 			if review['user']['login'] in collaborators:
-				new_review = Review(repo_name=repo_name, pr_number=pr['number'], reviewer=reviewer, completed_at = datetime.utcnow())
+				new_review = Review(repo_name=repo_name, pr_number=pr['number'], reviewer=reviewer, completed_at = datetime.utcnow(), review_url = review_web_url)
 				self.db.session.add(new_review)
 				self.db.session.commit()
 				return

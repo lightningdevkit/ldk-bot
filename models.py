@@ -40,6 +40,7 @@ class Review(db.Model):
 	reviewer = db.Column(db.String(100), nullable=False)
 	requested_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 	completed_at = db.Column(db.DateTime, nullable=True)
+	review_url = db.Column(db.String(200), nullable=True)
 	__table_args__ = (db.ForeignKeyConstraint([repo_name, pr_number],
 						[PullRequest.repo_name, PullRequest.pr_number]), {})
 
