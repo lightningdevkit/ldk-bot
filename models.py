@@ -6,6 +6,12 @@ import logging
 
 logger = logging.getLogger("model")
 
+def sub_times(end, start):
+	assert end >= start
+	start_dt = datetime(2020, 1, 1, hour=start.hour, minute=start.minute, second=start.second, microsecond=start.microsecond)
+	end_dt = datetime(2020, 1, 1, hour=end.hour, minute=end.minute, second=end.second, microsecond=end.microsecond)
+	return end_dt - start_dt
+
 class PRStatus(Enum):
 	PENDING_REVIEWER_CHOICE = 0
 	DRAFT = 1
@@ -66,16 +72,17 @@ class Review(db.Model):
 		end_localized = end.astimezone(tzinfo)
 		total_time = timedelta(0)
 		while start_localized < end_localized:
-			if start_localized.weekday() > 4 or start_localized.hour < 9 or start_localized.hour > 17:
-				start_localized = start_localized.replace(hour=9, minute=0, second=0, microsecond=0)
-				if start_localized.weekday() > 4:
-					start_localized += timedelta(days=1)
-				continue
 			workday_end = time(hour=17, minute=0, second=0, microsecond=0, tzinfo=tzinfo)
-			workday_time = workday_end - start_localized.timetz()
+			if start_localized.weekday() > 4 or start_localized.hour < 9 or start_localized.timetz() > workday_end:
+				if start_localized.weekday() > 4 or start_localized.timetz() > workday_end:
+					start_localized += timedelta(days=1)
+				start_localized = start_localized.replace(hour=9, minute=0, second=0, microsecond=0)
+				continue
+			workday_time = sub_times(workday_end, start_localized.timetz())
 			if start_localized.date() == end_localized.date():
-				actual_time = end_localized.timetz() - start_localized.timetz()
+				actual_time = sub_times(end_localized.timetz(), start_localized.timetz())
 				total_time += min(workday_time, actual_time)
+				break
 			else:
 				total_time += workday_time
 				start_localized = start_localized.replace(hour = 18) # Let the next loop iteration jump to the next day
