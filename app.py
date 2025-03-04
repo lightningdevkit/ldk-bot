@@ -104,6 +104,10 @@ def confirm_assign_second_reviewer(repo_org, repo_name, pr_number):
 	"""Actually assign a second reviewer after confirmation."""
 	back_url = f"https://github.com/{repo_org}/{repo_name}/pull/{pr_number}"
 	try:
+		count = len(github_bot.get_current_reviewers(repo_org + "/" + repo_name, pr_number))
+		if count >= 2:
+			return render_template('error.html', message="Second reviewer already assigned", back_url=back_url)
+
 		success = github_bot.assign_second_reviewer(repo_org + "/" + repo_name, pr_number)
 		if success:
 			return render_template('success.html', message="Second reviewer assigned successfully!", back_url=back_url)
