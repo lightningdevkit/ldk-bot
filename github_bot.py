@@ -570,7 +570,7 @@ class GitHubBot:
 			if len(current_reviewers) > 1:
 				return
 
-			repo_url = f"https://api.github.com/repos/{repo_name}"
+			repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
 			# Check if we've already asked about a second reviewer
 			if self._has_bot_comment_about_second_reviewer(repo_url, pr_record.pr_number):
 				self.logger.info(f"Already asked about second reviewer for PR #{pr_record.pr_number}")
