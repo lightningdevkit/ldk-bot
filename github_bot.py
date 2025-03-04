@@ -379,29 +379,31 @@ class GitHubBot:
 		return reviewer_counts
 
 	def _auto_assign_next_reviewer(self, pr_record, pr):
+		repo_name = pr['base']['repo']['full_name']
+		pr_number = pr['number']
+		pr_author = pr['user']['login']
+
 		# Skip if PR is in draft
 		if pr.get('draft', False):
-			self.logger.info(f"PR #{pr_record.pr_number} is in draft, skipping auto-assignment")
+			self.logger.info(f"PR #{pr_number} is in draft, skipping auto-assignment")
 			return
 
 		if pr.get('closed_at') is not None:
-			self.logger.info(f"PR #{pr_record.pr_number} is closed, skipping auto-assignment")
+			self.logger.info(f"PR #{pr_number} is closed, skipping auto-assignment")
 			return
 
 		if pr.get('merged_at') is not None:
-			self.logger.info(f"PR #{pr_record.pr_number} is merged, skipping auto-assignment")
+			self.logger.info(f"PR #{pr_number} is merged, skipping auto-assignment")
 			return
-
-		pr_author = pr['user']['login']
 
 		# Get collaborators excluding PR author
 		collaborators = [
-			c for c in self.get_repo_collaborators(pr_record.repo_name)
+			c for c in self.get_repo_collaborators(repo_name)
 			if c != pr_author
 		]
 
 		if not collaborators:
-			self.logger.error(f"No eligible reviewers found for PR #{pr_record.pr_number}")
+			self.logger.error(f"No eligible reviewers found for PR #{pr_number}")
 			return
 
 		current_reviewers = [
@@ -409,11 +411,11 @@ class GitHubBot:
 			for user in pr.get('requested_reviewers', [])
 		]
 
-		reviews = Review.query.filter_by(pr_number=pr_record.pr_number, repo_name=pr_record.repo_name).all()
+		reviews = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name).all()
 		for review in reviews:
 			current_reviewers.append(review.reviewer)
 
-		reviewer_counts = self.get_reviewer_pr_counts(pr_record.repo_name)
+		reviewer_counts = self.get_reviewer_pr_counts(repo_name)
 
 		# Initialize counts for new collaborators
 		for collaborator in collaborators:
@@ -428,10 +430,11 @@ class GitHubBot:
 		selected_reviewer = random.choice(possible_reviewers)
 
 		if selected_reviewer is not None:
-			self.assign_reviewer(pr_record.repo_name, pr_record.pr_number, selected_reviewer)
+			self.assign_reviewer(repo_name, pr_number, selected_reviewer)
 
-			pr_record.status = PRStatus.PENDING_REVIEW
-			self.db.session.commit()
+			if pr_record is not None:
+				pr_record.status = PRStatus.PENDING_REVIEW
+				self.db.session.commit()
 
 		return selected_reviewer
 
