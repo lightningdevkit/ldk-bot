@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import logging
 import requests
+import random
 from models import PullRequest, Review, PRStatus
 from datetime import datetime, timedelta
 
@@ -403,8 +404,9 @@ class GitHubBot:
 		# Sort collaborators by PR count
 		sorted_reviewers = sorted(collaborators, key=lambda x: reviewer_counts.get(x, 0))
 
-		# Select only the first reviewer with least PRs
-		selected_reviewer = sorted_reviewers[0] if sorted_reviewers else None
+		min_reviews = reviewer_counts[sorted_reviewers[0]]
+		possible_reviewers = [reviewer for reviewer in sorted_reviewers if reviewer_counts[reviewer] == min_reviews]
+		selected_reviewer = random.choice(possible_reviewers)
 
 		if selected_reviewer is not None:
 			self.assign_reviewer(pr_record.repo_name, pr_record.pr_number, selected_reviewer)
