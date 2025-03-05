@@ -125,10 +125,14 @@ def reviewer_dashboard():
 	# Get all reviews
 	reviews = Review.query.order_by(Review.requested_at.desc()).all()
 
+	repo_name = os.environ.get("GITHUB_REPOSITORY")
+	reviewer_pr_counts = github_bot.get_reviewer_pr_counts(repo_name)
+
 	for review in reviews:
 		reviewer = review.reviewer
 		if reviewer not in reviewers:
 			reviewers[reviewer] = {
+				'pending_review_count': reviewer_pr_counts.get(reviewer, 0),
 				'pending_reviews': [],
 				'completed_reviews': [],
 				'total_duration': 0,

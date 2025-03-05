@@ -366,15 +366,17 @@ class GitHubBot:
 		response.raise_for_status()
 
 		for pr in response.json():
+			reviewer_set = set()
 			for reviewer in pr.get('requested_reviewers', []):
-				reviewer_login = reviewer['login']
-				reviewer_counts[reviewer_login] = reviewer_counts.get(reviewer_login, 0) + 1
+				reviewer = reviewer['login']
+				reviewer_set.add(reviewer)
 
-		open_prs = PullRequest.query.filter(PullRequest.status.in_([PRStatus.PENDING_REVIEW, PRStatus.REVIEWED])).all()
-		for pr in open_prs:
-			reviews = Review.query.filter_by(pr_number=pr.pr_number, repo_name=pr.repo_name).all()
+			reviews = Review.query.filter_by(pr_number=pr['number'], repo_name=repo_name).all()
 			for review in reviews:
-				reviewer_counts[review.reviewer] = reviewer_counts.get(review.reviewer, 0) + 1
+				reviewer_set.add(review.reviewer)
+
+			for reviewer in reviewer_set:
+				reviewer_counts[reviewer] = reviewer_counts.get(reviewer, 0) + 1
 
 		return reviewer_counts
 
