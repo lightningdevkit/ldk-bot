@@ -89,6 +89,8 @@ class GitHubBot:
 			self._handle_converted_to_draft(pr)
 		elif action == 'review_requested':
 			self._handle_review_requested(data['pull_request'], data['requested_reviewer'])
+		elif action == 'review_request_removed':
+			self._handle_review_request_removed(data['pull_request'], data['requested_reviewer'])
 
 	def _handle_new_pr(self, pr):
 		"""Handle new pull request."""
@@ -186,6 +188,37 @@ class GitHubBot:
 			# Update PR status
 			pr_record.status = PRStatus.DRAFT
 			self.db.session.commit()
+
+	def _handle_review_request_removed(self, pr, requested_reviewer):
+		repo_name = pr['base']['repo']['full_name']
+		pr_number = pr['number']
+		repo_url = pr['base']['repo']['url']
+		reviewer = requested_reviewer['login']
+
+		if pr_number < MIN_PR_ID:
+			return
+
+		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
+		if pr_record is None:
+			self.logger.error(f"Got a review-request-removed before PR #{pr_number} was open")
+			return
+
+		pending_review = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name, reviewer=reviewer, completed_at=None).first()
+		if pending_review:
+			self.db.session.delete(pending_review)
+			self.db.session.commit()
+
+		assert pr_record.initial_comment_id is not None
+
+		second_reviewer_url = f"{APP_BASE_URL}/assign-second-reviewer/{pr_record.repo_name}/{pr_record.pr_number}"
+
+		# Update the initial comment
+		comment = (
+			f"👋 I see @{reviewer} was un-assigned.\n"
+			f"If you'd like another reviewer assignemnt, please [click here]({second_reviewer_url})."
+		)
+
+		self._update_comment(repo_url, pr_record, comment)
 
 	def _handle_review_requested(self, pr, requested_reviewer):
 		"""Handle review requested event."""
