@@ -27,8 +27,6 @@ class PullRequest(db.Model):
 	pr_title = db.Column(db.String(500), nullable=False)
 	status = db.Column(db.Enum(PRStatus), default=PRStatus.PENDING_REVIEWER_CHOICE)
 	created_at = db.Column(db.DateTime, default=datetime.utcnow)
-	last_reminder_sent = db.Column(db.DateTime, nullable=True)
-	reminder_count = db.Column(db.Integer, default=0)
 	initial_comment_id = db.Column(db.BigInteger, nullable=True)
 
 class Review(db.Model):
@@ -39,6 +37,8 @@ class Review(db.Model):
 	pr_number = db.Column(db.Integer, nullable=False)
 	reviewer = db.Column(db.String(100), nullable=False)
 	requested_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+	last_reminder_sent = db.Column(db.DateTime, nullable=True)
+	reminder_count = db.Column(db.Integer, default=0)
 	completed_at = db.Column(db.DateTime, nullable=True)
 	review_url = db.Column(db.String(200), nullable=True)
 	__table_args__ = (db.ForeignKeyConstraint([repo_name, pr_number],
