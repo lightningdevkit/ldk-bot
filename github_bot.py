@@ -293,7 +293,7 @@ class GitHubBot:
 			# Github sends webhooks for simple comments and treats them as "reviews".
 			review_id = review_web_url.split(f"{pr['number']}#pullrequestreview-")
 			assert len(review_id) == 2
-			review_id = review_id[1]
+			review_id = int(review_id[1])
 
 			comment_list_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr['number']}/comments"
 			comment_list = requests.get(comment_list_url, headers=self.headers)
