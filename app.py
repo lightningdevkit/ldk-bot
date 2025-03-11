@@ -125,6 +125,11 @@ def reviewer_dashboard():
 	# Get all reviews
 	reviews = Review.query.order_by(Review.requested_at.desc()).all()
 
+	pr_rows = PullRequest.query.all()
+	prs = {}
+	for pr in pr_rows:
+		prs[pr.pr_number] = pr
+
 	repo_name = os.environ.get("GITHUB_REPOSITORY")
 	reviewer_pr_counts = github_bot.get_reviewer_pr_counts(repo_name)
 
@@ -133,6 +138,7 @@ def reviewer_dashboard():
 		if reviewer not in reviewers:
 			reviewers[reviewer] = {
 				'pending_review_count': reviewer_pr_counts.get(reviewer, 0),
+				'assigned_prs': set(),
 				'pending_reviews': [],
 				'completed_reviews': [],
 				'total_duration': 0,
@@ -145,8 +151,11 @@ def reviewer_dashboard():
 			review_duration = review.review_duration.total_seconds() / 3600.0
 			reviewers[reviewer]['total_duration'] += review_duration
 			reviewers[reviewer]['total_reviews'] += 1
+			if prs[review.pr_number].status != PRStatus.CLOSED:
+				reviewers[reviewer]['assigned_prs'].add((review.pr_number, prs[review.pr_number].pr_title))
 		else:
 			reviewers[reviewer]['pending_reviews'].append(review)
+			reviewers[reviewer]['assigned_prs'].add((review.pr_number, prs[review.pr_number].pr_title))
 
 	for reviewer in reviewers:
 		review_count = reviewers[reviewer]['total_reviews']

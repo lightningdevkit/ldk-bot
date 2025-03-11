@@ -93,10 +93,21 @@
         </div>
         {% endif %}
 
+        {% if data.assigned_prs %}
+        <div class="reviews-list">
+            <h3>Assigned PRs</h3>
+            {% for pr in data.assigned_prs %}
+            <div class="review-item pending">
+                <strong>PR #{{ pr.0 }}</strong> - {{pr.1}}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if data.completed_reviews %}
         <div class="reviews-list">
             <h3>Recent Completed Reviews</h3>
-            {% for review in data.completed_reviews[:5] %}
+            {% for review in data.completed_reviews[:10] %}
             <div class="review-item completed">
                 <strong>PR #{{ review.pr_number }}</strong> - {{review.pr_title}}
                 <br>
