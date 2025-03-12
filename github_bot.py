@@ -373,8 +373,7 @@ class GitHubBot:
 
 	def get_stats(self):
 		"""Get bot statistics."""
-		active_prs = PullRequest.query.filter(
-			PullRequest.status != PRStatus.CLOSED).count()
+		active_prs = PullRequest.query.filter(PullRequest.status != PRStatus.CLOSED).count()
 		total_reviews = Review.query.count()
 
 		return {'active_prs': active_prs, 'total_reviews': total_reviews}
@@ -393,18 +392,11 @@ class GitHubBot:
 		"""Get count of open PRs assigned to each reviewer."""
 		reviewer_counts = {}
 
-		# Get all open PRs
-		url = f"https://api.github.com/repos/{repo_name}/pulls"
-		response = requests.get(url, headers=self.headers)
-		response.raise_for_status()
+		prs = PullRequest.query.filter(PullRequest.status != PRStatus.CLOSED).all()
 
-		for pr in response.json():
+		for pr in prs:
 			reviewer_set = set()
-			for reviewer in pr.get('requested_reviewers', []):
-				reviewer = reviewer['login']
-				reviewer_set.add(reviewer)
-
-			reviews = Review.query.filter_by(pr_number=pr['number'], repo_name=repo_name).all()
+			reviews = Review.query.filter_by(pr_number=pr.pr_number, repo_name=repo_name).all()
 			for review in reviews:
 				reviewer_set.add(review.reviewer)
 
