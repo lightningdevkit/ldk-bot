@@ -288,6 +288,11 @@ class GitHubBot:
 			self.logger.error("No review/PR in req!")
 			return
 
+		pr_author = pr['user']['login']
+		if review['user']['login'] == pr_author:
+			self.logger.info(f"Self-'review'")
+			return
+
 		review_web_url = review["_links"]["html"]["href"]
 		if review["state"] == "commented":
 			# Github sends webhooks for simple comments and treats them as "reviews".
@@ -304,7 +309,7 @@ class GitHubBot:
 					if comment.get("in_reply_to_id") is None:
 						actually_a_review = True
 			if not actually_a_review:
-				self.logger.info("Concluded that reivew id {review_id} is not a real review. It is theoretically at {review_web_url}")
+				self.logger.info(f"Concluded that reivew id {review_id} is not a real review. It is theoretically at {review_web_url}")
 
 		pr_record = PullRequest.query.filter_by(pr_number=pr['number'], repo_name=repo_name).first()
 
@@ -315,6 +320,7 @@ class GitHubBot:
 		requests_completed = Review.query.filter(
 			Review.repo_name == repo_name,
 			Review.pr_number == pr['number'],
+			Review.completed_at == None,
 			Review.reviewer == reviewer).all()
 
 		for request in requests_completed:
@@ -322,16 +328,10 @@ class GitHubBot:
 			request.review_url = review_web_url
 
 		if len(requests_completed) == 0:
-			pr_author = pr['user']['login']
-			collaborators = [
-				c for c in self.get_repo_collaborators(repo_name)
-				if c != pr_author
-			]
-			if review['user']['login'] in collaborators:
-				new_review = Review(repo_name=repo_name, pr_number=pr['number'], reviewer=reviewer, completed_at = datetime.utcnow(), review_url = review_web_url)
-				self.db.session.add(new_review)
-				self.db.session.commit()
-				return
+			new_review = Review(repo_name=repo_name, pr_number=pr['number'], reviewer=reviewer, completed_at = datetime.utcnow(), review_url = review_web_url)
+			self.db.session.add(new_review)
+			self.db.session.commit()
+			return
 
 		# Update PR status to reviewed
 		pr_record.status = PRStatus.REVIEWED
