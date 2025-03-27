@@ -389,7 +389,7 @@ class GitHubBot:
 		#return ["arik-so", "jkczyz", "TheBlueMatt", "valentinewallace", "wpaulino"]
 		return ["arik-so", "jkczyz", "valentinewallace", "wpaulino"]
 
-	def get_recent_reviews(self, repo_name):
+	def get_recent_reviews(self):
 		"""Get count of open PRs assigned to each reviewer."""
 		reviewer_counts = {}
 
@@ -399,7 +399,7 @@ class GitHubBot:
 		for pr in prs:
 			reviewer_set = set()
 			reviews = Review.query.filter(
-				Review.pr_number==pr.pr_number, Review.repo_name==repo_name,
+				Review.pr_number==pr.pr_number,
 				Review.completed_at > recent_threshold
 			).all()
 			for review in reviews:
@@ -447,7 +447,7 @@ class GitHubBot:
 		for review in reviews:
 			current_reviewers.append(review.reviewer)
 
-		reviewer_counts = self.get_recent_reviews(repo_name)
+		reviewer_counts = self.get_recent_reviews()
 
 		# Initialize counts for new collaborators
 		for collaborator in collaborators:

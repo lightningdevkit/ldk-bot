@@ -130,8 +130,7 @@ def reviewer_dashboard():
 	for pr in pr_rows:
 		prs[pr.pr_number] = pr
 
-	repo_name = os.environ.get("GITHUB_REPOSITORY")
-	recent_reviews = github_bot.get_recent_reviews(repo_name)
+	recent_reviews = github_bot.get_recent_reviews()
 
 	for review in reviews:
 		reviewer = review.reviewer
