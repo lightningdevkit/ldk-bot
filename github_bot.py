@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 APP_BASE_URL="https://ldk-reviews-bot.bluematt.me/"
 
-MIN_PR_ID = 3634
+MIN_PR_ID = { "lightningdevkit/rust-lightning": 3634, "lightningdevkit/ldk-node": 512 }
 
 class GitHubBot:
 	def __init__(self, token, webhook_secret, db):
@@ -37,7 +37,7 @@ class GitHubBot:
 		self.logger.info(f"Found {len(prs)} pull requests")
 
 		for pr in prs:
-			if pr['number'] < MIN_PR_ID:
+			if pr['number'] < MIN_PR_ID[repo_name]:
 				continue
 			if pr['state'] == "open":
 				# Check if PR already exists in database
@@ -98,7 +98,7 @@ class GitHubBot:
 		repo_name = pr['base']['repo']['full_name']
 		pr_number = pr['number']
 
-		if pr_number < MIN_PR_ID:
+		if pr_number < MIN_PR_ID[repo_name]:
 			return
 
 		# Create new PR record
@@ -195,7 +195,7 @@ class GitHubBot:
 		repo_url = pr['base']['repo']['url']
 		reviewer = requested_reviewer['login']
 
-		if pr_number < MIN_PR_ID:
+		if pr_number < MIN_PR_ID[repo_name]:
 			return
 
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
@@ -227,7 +227,7 @@ class GitHubBot:
 		pr_number = pr['number']
 		reviewer = requested_reviewer['login']
 
-		if pr_number < MIN_PR_ID:
+		if pr_number < MIN_PR_ID[repo_name]:
 			return
 
 		pr_record = PullRequest.query.filter_by(pr_number=pr_number, repo_name=repo_name).first()
@@ -281,7 +281,7 @@ class GitHubBot:
 		repo_name = pr['base']['repo']['full_name']
 		reviewer = review['user']['login']
 
-		if pr['number'] < MIN_PR_ID:
+		if pr['number'] < MIN_PR_ID[repo_name]:
 			return
 
 		if not review or not pr:
