@@ -456,6 +456,8 @@ class GitHubBot:
 		# Sort collaborators by PR count
 		sorted_reviewers = sorted(collaborators, key=lambda x: reviewer_counts.get(x, 0))
 
+		self.logger.info(f"Possible reviewers for #{pr_number} and their review counts: {str(reviewer_counts)}")
+
 		min_reviews = reviewer_counts[sorted_reviewers[0]]
 		possible_reviewers = [reviewer for reviewer in sorted_reviewers if reviewer_counts[reviewer] == min_reviews]
 		selected_reviewer = random.choice(possible_reviewers)
