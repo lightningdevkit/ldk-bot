@@ -72,7 +72,7 @@ def webhook():
 
 	event = request.headers.get('X-GitHub-Event')
 	data = request.json
-	logger.info(f"Received {event} webhook event for a {data['action']}")
+	logger.info(f"Received {event} webhook event for a {data.get('action')}")
 
 	try:
 		if event == 'pull_request':
