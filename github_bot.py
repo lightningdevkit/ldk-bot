@@ -25,42 +25,41 @@ class GitHubBot:
 	def sync_existing_prs(self):
 		"""Sync existing pull requests, reviews and assigned reviewers on startup."""
 		self.logger.info("Starting sync of existing pull requests...")
-		# Get repository name from an environment variable
-		repo_name = os.environ.get("GITHUB_REPOSITORY")
 
-		# Get all open pull requests
-		url = f"https://api.github.com/repos/{repo_name}/pulls?state=all"
-		response = requests.get(url, headers=self.headers)
-		response.raise_for_status()
+		for repo_name in MIN_PR_ID:
+			# Get all open pull requests
+			url = f"https://api.github.com/repos/{repo_name}/pulls?state=all"
+			response = requests.get(url, headers=self.headers)
+			response.raise_for_status()
 
-		prs = response.json()
-		self.logger.info(f"Found {len(prs)} pull requests")
+			prs = response.json()
+			self.logger.info(f"Found {len(prs)} pull requests")
 
-		for pr in prs:
-			if pr['number'] < MIN_PR_ID[repo_name]:
-				continue
-			if pr['state'] == "open":
-				# Check if PR already exists in database
-				existing_pr = PullRequest.query.filter_by(
-					pr_number=pr['number'], repo_name=repo_name).first()
+			for pr in prs:
+				if pr['number'] < MIN_PR_ID[repo_name]:
+					continue
+				if pr['state'] == "open":
+					# Check if PR already exists in database
+					existing_pr = PullRequest.query.filter_by(
+						pr_number=pr['number'], repo_name=repo_name).first()
 
-				if not existing_pr:
-					self._handle_new_pr(pr)
-			else:
-				# Check if PR already exists in database
-				existing_pr = PullRequest.query.filter_by(
-					pr_number=pr['number'], repo_name=repo_name).first()
+					if not existing_pr:
+						self._handle_new_pr(pr)
+				else:
+					# Check if PR already exists in database
+					existing_pr = PullRequest.query.filter_by(
+						pr_number=pr['number'], repo_name=repo_name).first()
 
-				if existing_pr:
-					existing_pr.status = PRStatus.CLOSED
-					reviews = Review.query.filter_by(pr_number=pr['number'], repo_name=repo_name).all()
-					for review in reviews:
-						if review.completed_at is None:
-							review.completed_at = datetime.utcnow()
-					self.db.session.commit()
+					if existing_pr:
+						existing_pr.status = PRStatus.CLOSED
+						reviews = Review.query.filter_by(pr_number=pr['number'], repo_name=repo_name).all()
+						for review in reviews:
+							if review.completed_at is None:
+								review.completed_at = datetime.utcnow()
+						self.db.session.commit()
 
-		self.db.session.commit()
-		self.logger.info(f"Synced {len(prs)} PRs")
+			self.db.session.commit()
+			self.logger.info(f"Synced {len(prs)} PRs")
 
 	def verify_webhook(self, signature, payload):
 		"""Verify webhook signature."""
