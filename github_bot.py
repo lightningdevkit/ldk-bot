@@ -145,9 +145,10 @@ class GitHubBot:
 
 	def _handle_ready_for_review(self, pr):
 		# Handle PR being converted from draft to ready
+		repo_name = pr['base']['repo']['full_name']
 		pr_record = PullRequest.query.filter_by(
 			pr_number=pr['number'],
-			repo_name=pr['base']['repo']['full_name']).first()
+			repo_name=repo_name).first()
 
 		if pr_record and pr_record.initial_comment_id:
 			pr_record.status = PRStatus.PENDING_REVIEWER_CHOICE
@@ -160,6 +161,9 @@ class GitHubBot:
 				"Once the first reviewer has submitted a review, a second will be assigned."
 			)
 			self._update_comment(pr['base']['repo']['url'], pr_record, comment)
+
+		for reviewer in pr.get("requested_reviewers", []):
+			self._add_pending_review(repo_name, pr['number'], reviewer["login"])
 
 	def _handle_converted_to_draft(self, pr):
 		"""Handle PR being converted to draft."""
