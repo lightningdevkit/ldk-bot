@@ -85,7 +85,9 @@
             <h3>Pending Reviews</h3>
             {% for review in data.pending_reviews %}
             <div class="review-item pending">
-                <strong>#{{ review.repo_name }} #{{ review.pr_number }}</strong> - {{review.pr_title}}
+                <a href = "https://github.com/{{review.repo_name}}/pull/{{review.pr_number}}">
+                    <strong>#{{ review.repo_name }} #{{ review.pr_number }}</strong> - {{review.pr_title}}
+                </a>
                 <br>
                 Waiting for: {{ review.review_duration_hours }} hours
             </div>
@@ -98,7 +100,9 @@
             <h3>Assigned PRs</h3>
             {% for pr in data.assigned_prs %}
             <div class="review-item pending">
-                <strong>{{ pr.0 }} #{{ pr.1 }}</strong> - {{pr.2}}
+                <a href = "https://github.com/{{pr.0}}/pull/{{pr.1}}">
+                    <strong>{{ pr.0 }} #{{ pr.1 }}</strong> - {{pr.2}}
+                </a>
             </div>
             {% endfor %}
         </div>
@@ -109,7 +113,9 @@
             <h3>Recent Completed Reviews</h3>
             {% for review in data.completed_reviews[:10] %}
             <div class="review-item completed">
-                <strong>{{ review.repo_name }} #{{ review.pr_number }}</strong> - {{review.pr_title}}
+                <a href = "https://github.com/{{review.repo_name}}/pull/{{review.pr_number}}">
+                    <strong>{{ review.repo_name }} #{{ review.pr_number }}</strong> - {{review.pr_title}}
+                </a>
                 <br>
                 Completed in: {{ review.review_duration_hours }} hours
             </div>
