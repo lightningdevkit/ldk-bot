@@ -151,10 +151,10 @@ def reviewer_dashboard():
 			reviewers[reviewer]['total_duration'] += review_duration
 			reviewers[reviewer]['total_reviews'] += 1
 			if prs[review.pr_number].status != PRStatus.CLOSED:
-				reviewers[reviewer]['assigned_prs'].add((review.pr_number, prs[review.pr_number].pr_title))
+				reviewers[reviewer]['assigned_prs'].add((review.repo_name, review.pr_number, prs[review.pr_number].pr_title))
 		else:
 			reviewers[reviewer]['pending_reviews'].append(review)
-			reviewers[reviewer]['assigned_prs'].add((review.pr_number, prs[review.pr_number].pr_title))
+			reviewers[reviewer]['assigned_prs'].add((review.repo_name, review.pr_number, prs[review.pr_number].pr_title))
 
 	for reviewer in reviewers:
 		review_count = reviewers[reviewer]['total_reviews']
