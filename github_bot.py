@@ -627,6 +627,7 @@ class GitHubBot:
 
 			# If there's already sufficient reviewers, don't ask
 			if len(current_reviewers) >= NUM_REQUIRED_REVIEWS[pr_record.repo_name]:
+				return
 
 			repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
 			# Check if we've already asked about a second reviewer
