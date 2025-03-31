@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 APP_BASE_URL="https://ldk-reviews-bot.bluematt.me/"
 
 MIN_PR_ID = { "lightningdevkit/rust-lightning": 3634, "lightningdevkit/ldk-node": 512 }
+NUM_REQUIRED_REVIEWS = { "lightningdevkit/rust-lightning": 2, "lightningdevkit/ldk-node": 1 }
 
 class GitHubBot:
 	def __init__(self, token, webhook_secret, db):
@@ -115,7 +116,7 @@ class GitHubBot:
 			comment = (
 				"👋 Hi! Please choose at least one reviewer by assigning them on the right bar.\n"
 				"If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
-				"Once the first reviewer has submitted a review, a second will be assigned."
+				"Once the first reviewer has submitted a review, a second will be assigned if required."
 			)
 
 		self.db.session.add(new_pr)
@@ -158,7 +159,7 @@ class GitHubBot:
 				"🎉 This PR is now ready for review!\n"
 				"Please choose at least one reviewer by assigning them on the right bar.\n"
 				"If no reviewers are assigned within 10 minutes, I'll automatically assign one.\n"
-				"Once the first reviewer has submitted a review, a second will be assigned."
+				"Once the first reviewer has submitted a review, a second will be assigned if required."
 			)
 			self._update_comment(pr['base']['repo']['url'], pr_record, comment)
 
@@ -624,9 +625,8 @@ class GitHubBot:
 		try:
 			current_reviewers = self.get_current_reviewers(pr_record.repo_name, pr_record.pr_number)
 
-			# If there's already more than one reviewer, don't ask
-			if len(current_reviewers) > 1:
-				return
+			# If there's already sufficient reviewers, don't ask
+			if len(current_reviewers) >= NUM_REQUIRED_REVIEWS[pr_record.repo_name]:
 
 			repo_url = f"https://api.github.com/repos/{pr_record.repo_name}"
 			# Check if we've already asked about a second reviewer
