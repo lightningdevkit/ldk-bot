@@ -97,7 +97,7 @@ def assign_second_reviewer(repo_org, repo_name, pr_number):
 	if count == 1:
 		return render_template('confirm_second_reviewer.html', repo_org=repo_org, repo_name=repo_name, pr_number=pr_number)
 	else:
-		return render_template('error.html', message="Second reviewer already assigned", back_url=back_url)
+		return render_template('error.html', message=f"Already have {count} reviewers assigned", back_url=back_url)
 
 @app.route('/assign-second-reviewer/<repo_org>/<repo_name>/<int:pr_number>/confirm', methods=['POST'])
 def confirm_assign_second_reviewer(repo_org, repo_name, pr_number):
