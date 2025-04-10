@@ -618,7 +618,7 @@ class GitHubBot:
 		for review in reviews:
 			current_reviewers.append(review.reviewer)
 
-		return current_reviewers
+		return list(set(current_reviewers))
 
 	def _ask_for_second_reviewer(self, pr, pr_record):
 		"""Ask if a second reviewer is needed after first review."""
