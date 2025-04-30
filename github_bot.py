@@ -431,16 +431,6 @@ class GitHubBot:
 			self.logger.info(f"PR #{pr_number} is merged, skipping auto-assignment")
 			return
 
-		# Get collaborators excluding PR author
-		collaborators = [
-			c for c in self.get_repo_collaborators(repo_name)
-			if c != pr_author
-		]
-
-		if not collaborators:
-			self.logger.error(f"No eligible reviewers found for PR #{pr_number}")
-			return
-
 		current_reviewers = [
 			user['login']
 			for user in pr.get('requested_reviewers', [])
@@ -449,6 +439,15 @@ class GitHubBot:
 		reviews = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name).all()
 		for review in reviews:
 			current_reviewers.append(review.reviewer)
+
+		collaborators = [
+			c for c in self.get_repo_collaborators(repo_name)
+			if c != pr_author and c not in current_reviewers
+		]
+
+		if not collaborators:
+			self.logger.error(f"No eligible reviewers found for PR #{pr_number}")
+			return
 
 		reviewer_counts = self.get_recent_reviews()
 
