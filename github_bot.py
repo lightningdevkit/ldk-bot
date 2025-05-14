@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 
 APP_BASE_URL="https://ldk-reviews-bot.bluematt.me/"
 
-MIN_PR_ID = { "lightningdevkit/rust-lightning": 3634, "lightningdevkit/ldk-node": 512 }
-NUM_REQUIRED_REVIEWS = { "lightningdevkit/rust-lightning": 2, "lightningdevkit/ldk-node": 1 }
+MIN_PR_ID = { "lightningdevkit/rust-lightning": 3634, "lightningdevkit/ldk-node": 512, "lightningdevkit/ldk-server": 64, "lightningdevkit/vss-server": 49, "lightningdevkit/vss-rust-client": 37 }
+NUM_REQUIRED_REVIEWS = { "lightningdevkit/rust-lightning": 2, "lightningdevkit/ldk-node": 1, "lightningdevkit/ldk-server": 1, "lightningdevkit/vss-server": 1, "lightningdevkit/vss-rust-client": 1 }
 
 class GitHubBot:
 	def __init__(self, token, webhook_secret, db):
