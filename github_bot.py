@@ -305,6 +305,7 @@ class GitHubBot:
 			review_id = int(review_id[1])
 
 			actually_a_review = False
+			found_comment = False
 			for page in range(1, 100): # Assume no more than 10k comments
 				comment_list_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr['number']}/comments?per_page=100&page={page}"
 				comment_list = requests.get(comment_list_url, headers=self.headers)
@@ -312,11 +313,28 @@ class GitHubBot:
 				comments = comment_list.json()
 				for comment in comments:
 					if comment["pull_request_review_id"] == review_id:
+						found_comment = True
 						if comment.get("in_reply_to_id") is None:
 							actually_a_review = True
 				if len(comments) < 100:
 					break
-			if not actually_a_review:
+			for page in range(1, 100):
+				review_list_url = f"https://api.github.com/repos/{repo_name}/pulls/{pr['number']}/reviews?per_page=100&page={page}"
+				review_list = requests.get(review_list_url, headers=self.headers)
+				review_list.raise_for_status()
+				reviews = review_list.json()
+				for review in reviews:
+					if review["id"] == review_id:
+						if len(review["body"]) != 0:
+							actually_a_review = True
+				if len(comments) < 100:
+					break
+			if found_comment and not actually_a_review:
+				# Github treats any comment on a PR diff as a "review", but doesn't treat the
+				# content in the review comment as a comment. Thus, we search through comments to
+				# see if there's any new comments in the review (i.e. that aren't in-reply-to
+				# anything) and ignore any reviews which do not have any fresh comments and do not
+				# have a review "body" (which is always empty for comment "reviews").
 				self.logger.info(f"Concluded that reivew id {review_id} is not a real review. It is theoretically at {review_web_url}")
 				return
 
