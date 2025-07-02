@@ -220,7 +220,7 @@ class GitHubBot:
 		# Update the initial comment
 		comment = (
 			f"👋 I see @{reviewer} was un-assigned.\n"
-			f"If you'd like another reviewer assignemnt, please [click here]({second_reviewer_url})."
+			f"If you'd like another reviewer assignment, please [click here]({second_reviewer_url})."
 		)
 
 		self._update_comment(repo_url, pr_record, comment)
