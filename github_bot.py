@@ -11,6 +11,7 @@ APP_BASE_URL="https://ldk-reviews-bot.bluematt.me/"
 
 MIN_PR_ID = { "lightningdevkit/rust-lightning": 3634, "lightningdevkit/ldk-node": 512, "lightningdevkit/ldk-server": 64, "lightningdevkit/vss-server": 49, "lightningdevkit/vss-rust-client": 37 }
 NUM_REQUIRED_REVIEWS = { "lightningdevkit/rust-lightning": 2, "lightningdevkit/ldk-node": 1, "lightningdevkit/ldk-server": 1, "lightningdevkit/vss-server": 1, "lightningdevkit/vss-rust-client": 1 }
+DEFAULT_FIRST_REVIEWER = { "lightningdevkit/ldk-node": "tnull" }
 
 class GitHubBot:
 	def __init__(self, token, webhook_secret, db):
@@ -219,7 +220,7 @@ class GitHubBot:
 		# Update the initial comment
 		comment = (
 			f"👋 I see @{reviewer} was un-assigned.\n"
-			f"If you'd like another reviewer assignemnt, please [click here]({second_reviewer_url})."
+			f"If you'd like another reviewer assignment, please [click here]({second_reviewer_url})."
 		)
 
 		self._update_comment(repo_url, pr_record, comment)
@@ -462,6 +463,18 @@ class GitHubBot:
 		reviews = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name).all()
 		for review in reviews:
 			current_reviewers.append(review.reviewer)
+
+		# If this is the first reviewer assignment and we have a default
+		# reviewer for the given repo, assign them and return early.
+		if not current_reviewers:
+			default_reviewer = DEFAULT_FIRST_REVIEWER.get(repo_name)
+			if default_reviewer is not None and default_reviewer != pr_author:
+				self.assign_reviewer(repo_name, pr_number, default_reviewer)
+
+				if pr_record is not None:
+					pr_record.status = PRStatus.PENDING_REVIEW
+					self.db.session.commit()
+				return default_reviewer
 
 		collaborators = [
 			c for c in self.get_repo_collaborators(repo_name)
