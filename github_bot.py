@@ -12,6 +12,7 @@ APP_BASE_URL="https://ldk-reviews-bot.bluematt.me/"
 MIN_PR_ID = { "lightningdevkit/rust-lightning": 3634, "lightningdevkit/ldk-node": 512, "lightningdevkit/ldk-server": 64, "lightningdevkit/vss-server": 49, "lightningdevkit/vss-rust-client": 37, "lightningdevkit/ldk-sample": 140, "lightningdevkit/rapid-gossip-sync-server": 101, "lightningdevkit/ldk-bot": 6 }
 NUM_REQUIRED_REVIEWS = { "lightningdevkit/rust-lightning": 2, "lightningdevkit/ldk-node": 1, "lightningdevkit/ldk-server": 1, "lightningdevkit/vss-server": 1, "lightningdevkit/vss-rust-client": 1, "lightningdevkit/ldk-sample": 1, "lightningdevkit/rapid-gossip-sync-server": 1, "lightningdevkit/ldk-bot": 1 }
 DEFAULT_FIRST_REVIEWER = { "lightningdevkit/ldk-node": "tnull", "lightningdevkit/rapid-gossip-sync-server": "TheBlueMatt", "lightningdevkit/ldk-bot": "TheBlueMatt" }
+IGNORED_REVIEWERS = ['graphite-app[bot]']
 
 class GitHubBot:
 	def __init__(self, token, webhook_secret, db):
@@ -232,6 +233,9 @@ class GitHubBot:
 		pr_number = pr['number']
 		reviewer = requested_reviewer['login']
 
+		if reviewer in IGNORED_REVIEWERS:
+			return
+
 		if pr_number < MIN_PR_ID[repo_name]:
 			return
 
@@ -267,6 +271,8 @@ class GitHubBot:
 		assert pr_record is not None
 		pr_record.status = PRStatus.PENDING_REVIEW
 
+		assert(reviewer not in IGNORED_REVIEWERS)
+
 		pending_review = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name, reviewer=reviewer, completed_at=None).first()
 		if pending_review:
 			# Probably we already assigned on the bot and then got the callback for the assignment
@@ -287,6 +293,9 @@ class GitHubBot:
 		reviewer = review['user']['login']
 
 		if pr['number'] < MIN_PR_ID[repo_name]:
+			return
+
+		if reviewer in IGNORED_REVIEWERS:
 			return
 
 		if not review or not pr:
@@ -376,6 +385,8 @@ class GitHubBot:
 		response = requests.post(url, headers=self.headers, json={'reviewers': [reviewer]})
 		if response.status_code != 201:
 			raise Exception(f"Failed to assign reviewers: {response.text}")
+		if reviewer in IGNORED_REVIEWERS:
+			raise Exception(f"Selected reviewer {reviewer} not allowed to be assigned")
 		self._add_pending_review(repo_name, pr_number, reviewer)
 
 	def _create_comment(self, repo_url, pr_number, body):
@@ -491,6 +502,13 @@ class GitHubBot:
 		for collaborator in collaborators:
 			if collaborator not in reviewer_counts:
 				reviewer_counts[collaborator] = 0
+
+		for disallowed_reviewer in IGNORED_REVIEWERS:
+			try:
+				pos = collaborators.index(disallowed_reviewer)
+				del collaborators[pos]
+			except ValueError:
+				pass
 
 		# Sort collaborators by PR count
 		sorted_reviewers = sorted(collaborators, key=lambda x: reviewer_counts.get(x, 0))
@@ -648,6 +666,13 @@ class GitHubBot:
 			user['login']
 			for user in pr_data.get('requested_reviewers', [])
 		]
+
+		for disallowed_reviewer in IGNORED_REVIEWERS:
+			try:
+				pos = current_reviewers.index(disallowed_reviewer)
+				del current_reviewers[pos]
+			except ValueError:
+				pass
 
 		reviews = Review.query.filter_by(pr_number=pr_number, repo_name=repo_name).all()
 		for review in reviews:
