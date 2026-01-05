@@ -60,7 +60,8 @@ class Review(db.Model):
 			'tnull': 'Europe/Berlin',
 			'joostjager': 'Europe/Berlin',
 			'jkczyz': 'America/Chicago',
-			'arik-so': 'America/Los_Angeles'
+			'arik-so': 'America/Los_Angeles',
+			'tankyleo': 'America/Los_Angeles'
 		}
 		reviewer_tz = reviewer_tzs.get(self.reviewer)
 		if reviewer_tz is None:

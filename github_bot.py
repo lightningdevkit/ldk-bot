@@ -425,7 +425,7 @@ class GitHubBot:
 		#	self.logger.error(f"Failed to get collaborators: {response.text}")
 		#	return []
 		#return [user['login'] for user in response.json()]
-		return ["jkczyz", "TheBlueMatt", "valentinewallace", "wpaulino", "joostjager", "tnull"]
+		return ["jkczyz", "TheBlueMatt", "valentinewallace", "wpaulino", "joostjager", "tnull", "tankyleo"]
 
 	def get_recent_reviews(self):
 		"""Get count of open PRs assigned to each reviewer."""
