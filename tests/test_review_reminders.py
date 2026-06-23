@@ -52,15 +52,16 @@ class ReviewReminderTests(unittest.TestCase):
 				patch.object(bot, "_create_comment") as create_comment:
 			datetime_mock.utcnow.return_value = now
 
-			bot.check_and_send_reminders()
+			bot.check_and_auto_assign_reviewers()
 
 		create_comment.assert_not_called()
 
 	def test_unassigned_prs_are_still_auto_assigned_after_grace_period(self):
 		now = datetime(2026, 6, 23, 12, 0, 0)
+		pr_number = 10000
 		pr = PullRequest(
 			repo_name="lightningdevkit/ldk-node",
-			pr_number=10000,
+			pr_number=pr_number,
 			pr_title="Needs a reviewer",
 			status=PRStatus.PENDING_REVIEWER_CHOICE,
 			created_at=now - timedelta(minutes=11),
@@ -74,10 +75,10 @@ class ReviewReminderTests(unittest.TestCase):
 				patch.object(bot, "auto_assign_reviewers") as auto_assign_reviewers:
 			datetime_mock.utcnow.return_value = now
 
-			bot.check_and_send_reminders()
+			bot.check_and_auto_assign_reviewers()
 
 		auto_assign_reviewers.assert_called_once()
-		self.assertEqual(auto_assign_reviewers.call_args.args[0].pr_number, pr.pr_number)
+		self.assertEqual(auto_assign_reviewers.call_args.args[0].pr_number, pr_number)
 
 
 if __name__ == "__main__":
