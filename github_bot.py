@@ -566,7 +566,6 @@ class GitHubBot:
 
 		current_time = datetime.utcnow()
 		reviewer_threshold = current_time - timedelta(minutes=10)
-		reminder_threshold = current_time - timedelta(days=2)
 
 		# Force a new connection from the pool
 		self.db.session.remove()
@@ -579,19 +578,6 @@ class GitHubBot:
 		# Auto-assign reviewers for these PRs
 		for pr in prs_needing_assignment:
 			self.auto_assign_reviewers(pr)
-
-		# Nag reviewers, but only on weekdays
-		now = datetime.utcnow()
-		if now.weekday() < 4 or (now.weekday() == 5 and now.hour < 17):
-			reviews_needing_reminders = Review.query.filter(
-					Review.completed_at.is_(None),
-					((Review.last_reminder_sent.is_(None) &
-						(Review.requested_at <= reminder_threshold)) |
-					(Review.last_reminder_sent <= reminder_threshold))
-				).all()
-
-			for review in reviews_needing_reminders:
-				self._send_review_reminder(review)
 
 	def _send_review_reminder(self, review):
 		"""Send a reminder comment on a PR."""
