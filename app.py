@@ -35,7 +35,8 @@ with app.app_context():
 	github_bot = GitHubBot(
 		token=os.environ.get("GITHUB_TOKEN"),
 		webhook_secret=os.environ.get("WEBHOOK_SECRET"),
-		db=db
+		db=db,
+		review_reminders_enabled=os.environ.get("ENABLE_REVIEW_REMINDERS", "").lower() == "true"
 	)
 	logger.info("init'd github bot...")
 

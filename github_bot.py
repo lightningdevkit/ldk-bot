@@ -15,10 +15,11 @@ DEFAULT_FIRST_REVIEWER = { "lightningdevkit/ldk-node": "tnull", "lightningdevkit
 IGNORED_REVIEWERS = ['graphite-app[bot]']
 
 class GitHubBot:
-	def __init__(self, token, webhook_secret, db):
+	def __init__(self, token, webhook_secret, db, review_reminders_enabled=False):
 		self.token = token
 		self.webhook_secret = webhook_secret.encode()
 		self.db = db
+		self.review_reminders_enabled = review_reminders_enabled
 		self.logger = logging.getLogger(__name__)
 		self.headers = {
 			'Authorization': f'token {token}',
@@ -562,7 +563,7 @@ class GitHubBot:
 
 	def check_and_send_reminders(self):
 		"""Check for PRs needing review reminders and auto-assign reviewers."""
-		self.logger.info("Checking for PRs needing review reminders...")
+		self.logger.info("Checking for PRs needing reviewer assignment/reminders...")
 
 		current_time = datetime.utcnow()
 		reviewer_threshold = current_time - timedelta(minutes=10)
@@ -579,6 +580,9 @@ class GitHubBot:
 		# Auto-assign reviewers for these PRs
 		for pr in prs_needing_assignment:
 			self.auto_assign_reviewers(pr)
+
+		if not self.review_reminders_enabled:
+			return
 
 		# Nag reviewers, but only on weekdays
 		now = datetime.utcnow()
