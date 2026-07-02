@@ -41,20 +41,20 @@ with app.app_context():
 
 	github_bot.sync_existing_prs()
 
-def reminder_scheduler():
-	"""Background thread to periodically check and send reminders."""
+def reviewer_assignment_scheduler():
+	"""Background thread to periodically check automatic reviewer assignment."""
 	with app.app_context():
 		while True:
 			try:
-				github_bot.check_and_send_reminders()
+				github_bot.check_and_auto_assign_reviewers()
 			except Exception as e:
-				logger.exception(f"Error in reminder scheduler: {str(e)}")
+				logger.exception(f"Error in reviewer assignment scheduler: {str(e)}")
 			# Sleep for 1 minute before next check
 			time.sleep(60)
 
-# Start the reminder scheduler thread
-reminder_thread = threading.Thread(target=reminder_scheduler, daemon=True)
-reminder_thread.start()
+# Start the reviewer assignment scheduler thread
+reviewer_assignment_thread = threading.Thread(target=reviewer_assignment_scheduler, daemon=True)
+reviewer_assignment_thread.start()
 
 
 @app.route('/')

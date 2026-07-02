@@ -560,13 +560,12 @@ class GitHubBot:
 		except Exception as e:
 			self.logger.exception(f"Error auto-assigning reviewers: {str(e)}")
 
-	def check_and_send_reminders(self):
-		"""Check for PRs needing review reminders and auto-assign reviewers."""
-		self.logger.info("Checking for PRs needing review reminders...")
+	def check_and_auto_assign_reviewers(self):
+		"""Check for PRs needing automatic reviewer assignment."""
+		self.logger.info("Checking for PRs needing automatic reviewer assignment...")
 
 		current_time = datetime.utcnow()
 		reviewer_threshold = current_time - timedelta(minutes=10)
-		reminder_threshold = current_time - timedelta(days=2)
 
 		# Force a new connection from the pool
 		self.db.session.remove()
@@ -579,65 +578,6 @@ class GitHubBot:
 		# Auto-assign reviewers for these PRs
 		for pr in prs_needing_assignment:
 			self.auto_assign_reviewers(pr)
-
-		# Nag reviewers, but only on weekdays
-		now = datetime.utcnow()
-		if now.weekday() < 4 or (now.weekday() == 5 and now.hour < 17):
-			reviews_needing_reminders = Review.query.filter(
-					Review.completed_at.is_(None),
-					((Review.last_reminder_sent.is_(None) &
-						(Review.requested_at <= reminder_threshold)) |
-					(Review.last_reminder_sent <= reminder_threshold))
-				).all()
-
-			for review in reviews_needing_reminders:
-				self._send_review_reminder(review)
-
-	def _send_review_reminder(self, review):
-		"""Send a reminder comment on a PR."""
-		try:
-			# Get assigned reviewers for the PR
-			repo_url = f"https://api.github.com/repos/{review.repo_name}"
-			pr_url = f"{repo_url}/pulls/{review.pr_number}"
-
-			response = requests.get(pr_url, headers=self.headers)
-			response.raise_for_status()
-
-			pr_data = response.json()
-			reviewers = [
-				user['login']
-				for user in pr_data.get('requested_reviewers', [])
-			]
-
-			if not reviewers:
-				self.logger.info(f"No reviewers to remind for PR #{review.pr_number}")
-				return
-
-			# Create reminder message tagging all reviewers
-			reviewer_tags = ' '.join(
-				[f'@{reviewer}' for reviewer in reviewers])
-			reminder_count = review.reminder_count + 1
-			ordinal = lambda n: "%d%s" % (n, "tsnrhtdd"[
-				(n // 10 % 10 != 1) * (n % 10 < 4) * n % 10::4])
-
-			message = (
-				f"🔔 {ordinal(reminder_count)} Reminder\n\n"
-				f"Hey {reviewer_tags}! This PR has been waiting for your review.\n"
-				"Please take a look when you have a chance. If you're unable to review, "
-				"please let us know so we can find another reviewer.")
-
-			# Post the reminder comment
-			self._create_comment(repo_url, review.pr_number, message)
-
-			# Update reminder tracking
-			review.last_reminder_sent = datetime.utcnow()
-			review.reminder_count = reminder_count
-			self.db.session.commit()
-
-			self.logger.info(f"Sent review reminder for PR #{review.pr_number}")
-
-		except Exception as e:
-			self.logger.exception(f"Error sending reminder for PR #{review.pr_number}: {str(e)}")
 
 	def _has_bot_comment_about_second_reviewer(self, repo_url, pr_number):
 		"""Check if bot has already asked about second reviewer."""
